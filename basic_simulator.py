@@ -13,18 +13,7 @@ import math
 import name_extractor as ne
 import read_history as rh
 import heapq
-
-
-class simulation_result:
-    running_set_size = 0
-    missed_failures = 0
-    caught_failures = 0
-    metric = ''
-    learning_set_size = 0
-    full_simulation = False
-    max_limit = 0
-    pos_distribution = None
-    mode = ''
+import simulation_result
 
 class simulator:
     """============================================================="""
@@ -190,7 +179,11 @@ class simulator:
             
     """
     Function prepare_simulation
-    This function initializes all the data that is essential for a simulation, but 
+    This function initializes all the data that is essential for a simulation.
+    Mainly, it initializes the test_info dictionary, and filling up the failures
+    list in each test (test_info[test_name]['failures'] = list())
+    (The failures list contains all the IDs from the test_runs where test_name
+    has failed)
     """
     def prepare_simulation(self,fails_file=None):
         if len(self.test_info) == 0:
@@ -223,6 +216,8 @@ class simulator:
 
     """
     Function: run_simulation
+    This is the main simulator function. This function runs the learning round
+    and then the simulation.
     Arguments:
         = metric -      This is the metric that will be used to calculate relevancy 
                         of a test. ['weighted_avg','exp_decay']
@@ -240,13 +235,22 @@ class simulator:
         count = 0
         missed_failures = 0
         caught_failures = 0
-        simulating = False
-        pq = dict()
+        simulating = False # This parameter is turned to true after the learning round
+        pq = dict() # We keep a dict of priority queues
         positions = list()
         pos_dist = numpy.zeros(dtype=int,shape=1000) # Distribution of positions of tests
         logger.info('Simulating. RS: '+str(running_set)+' Mode: '+mode+' Full sim: '+str(self.full_simulation))
+        
+        """
+        test_hist is the file handler from the query of test_run history. It 
+        returns one-by-one the test_runs.
+        In the following loop, we iterate over each test run, from the first to
+        the last
+        """
         for test_run in test_hist:
             if count == self.learning_set:
+                #First 2000 iterations are the learning set. After that, the
+                #simulation starts.
                 simulating = True
                 logger.debug("==================================================")
                 logger.debug("==============SIMULATION HAS BEGUN================")
@@ -258,8 +262,25 @@ class simulator:
             
             old_qs = dict()
             if simulating: #Only if we are simulating do we need a pr_queue
+                """
+                Priority queues are built every iteration, listing the tests by
+                relevancy.
+                At any given time, 4 queues are being used or re built: 
+                 - The standard queue, 
+                 - The queue per-platform, 
+                 - The queue per-branch, and
+                 - The mixed per-branch/platform queue.
+                The priority queues are in the  pq  dictionary.
+                
+                Since the queues are only built in simulation-mode, the 
+                following code identifies the priority queues that have not been
+                built yet and thus we need to build before we go ahead with the 
+                simulation.
+                """
                 needed_queues = dict()
                 if 'standard' in pq:
+                    #We need to sort pq['standard'] because it's a heap, so it 
+                    #will not be in perfect linear order
                     old_qs['standard'] = sorted(pq['standard'],key = lambda elem: elem[0])
                 else:
                     needed_queues['standard'] = True
@@ -280,6 +301,11 @@ class simulator:
                 if len(needed_queues) > 0:
                     self.build_old_pr_queues(needed_queues,old_qs,self.test_info,\
                                         test_run[self.BRANCH],test_run[self.PLATFORM])
+                                        
+                """
+                After the old_pr_queues have been built, we reset the priority 
+                queues for the new iteration
+                """
                 pq[test_run[self.PLATFORM]] = list()
                 pq[test_run[self.BRANCH]] = list()
                 pq[test_run[self.BRANCH]+' '+test_run[self.PLATFORM]] = list()
@@ -294,18 +320,30 @@ class simulator:
             else:
                 logger.debug('Test run #'+str(test_run[self.RUN_ID])+' had no failures')
                 fails = list()
+            """
+            fails is a list of all the tests that failed in this test_run. Empty
+            if no tests failed in this test run.
+            """
             
             found_fails = 0
             max_pos = 0
             for test_name in self.test_info:
-                fail = int(test_name in fails)
+                fail = int(test_name in fails) #1 if the test failed, 0 if it did not
                 
-                if fail == 1: #This is just for data-sanity checks
+                if fail == 1:
                     found_fails += 1
+                #The found_fails variable is used later for data sanity checks
                     
                 if simulating and self.metric not in self.test_info[test_name] and fail == 1:
                     logger.debug('Very first recorded failure of '+test_name)
                 if simulating and fail == 1:
+                    """
+                    The following code finds the position of the test in the 
+                    corresponding priority queue, according to the mode that
+                    we are running.
+                    The position is accumulated on the pos_dist array, which
+                    contains the distribution of the positions of tests
+                    """
                     ind = -1
                     first_time = False
                     if mode == self.Mode.standard:
@@ -340,25 +378,34 @@ class simulator:
                             first_time = True
                     if not first_time:
                         if ind >= pos_dist.size:
+                            # If we need to increase the size of the pos_dist array, we do
+                            # up to the next 100
                             chg_size = ind if ind % 100 == 0 else ind + 100 - ind % 100
                             prev_size = pos_dist.size
                             pos_dist = numpy.resize(pos_dist,chg_size)
                             pos_dist[prev_size:pos_dist.size] = 0 #Making new elements zero
                         pos_dist[ind] += 1
-                        max_pos = ind if ind > max_pos else max_pos
-                        positions.append([test_name,ind])
+                        max_pos = ind if ind > max_pos else max_pos #Keeping max_pos for stats
+                        positions.append([test_name,ind]) # Keeping the list of positions for stats
                     
                     # If the test is not in the running set, the FAILURE is not recognized
+                    # and is marked as missed
                     if simulating and self.full_simulation and ind > running_set and fail == 1: 
                         fail = 0
                         missed_failures += 1
                     elif fail == 1:
+                        # If the test is in the running set, the FAILURE is recognized and caught
                         caught_failures += 1
+                
+                # Calculate the metric for this test
                 self.calculate_metric[self.metric](test_name,self.test_info,fail,test_run[self.BRANCH],test_run[self.PLATFORM])
-                if simulating and 'standard' in self.test_info[test_name][self.metric]: #Only if we are simulating do we need a pr_queue
+                
+                # Add the test to the priority queue if we are in simulation mode
+                if simulating and 'standard' in self.test_info[test_name][self.metric]:
                     self.add_to_pr_queue(self.test_info,test_name,pq,\
                                         test_run[self.PLATFORM],test_run[self.BRANCH])
-                    
+            
+            # Do logging after each iteration
             if simulating and found_fails > 0:
                 logger.debug('MAX pos: '+str(max_pos)+'|===|'+str(len(positions))+ \
                                 ' POSITIONS: '+str(positions))
@@ -373,13 +420,27 @@ class simulator:
                     ' | TF: '+str(missed_failures+caught_failures))
                     
         return self.prepare_result(pos_dist,missed_failures,caught_failures,mode)
-        
+    
+    """
+    Function: __init__
+    This function is the constructor of the simulator object.
+    Arguments:
+     - max_limit -       This is the maximum number of test_runs to analyze
+     - full_simulation - This indicates whether failures outside the running set
+                         should be considered or ignored (True - Ignored/ 
+                         False - Considered)
+     - metric -          This is the metric to use when calculating the 
+                         relevancy of a test
+     - learning_set -    This is the number of entries to use as a training set
+                         before attempting to predict failures.
+    """
     def __init__(self,max_limit=5000,full_simulation=True,metric='exp_decay', learning_set = 2000):
         self.max_limit = max_limit
         self.full_simulation = full_simulation       
         self.metric = metric
         self.learning_set = learning_set
         
+        #TODO the custom logging functions are not properly set yet
         logging.addLevelName(self.WA_DEBUG,'WA_DEBUG')
         logging.addLevelName(self.ED_DEBUG,'ED_DEBUG')
         logging.addLevelName(self.DEEP_DEBUG,'DEEP_DEBUG')

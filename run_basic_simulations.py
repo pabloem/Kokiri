@@ -10,15 +10,16 @@ import numpy as np
 
 sim = s.simulator()
 sim.prepare_simulation()
+
 standard_results = list()
 platform_results = list()
 branch_results = list()
 mixed_results = list()
 
+#Sizes of the running sets, to graph number of caught failures
 run_sets = (5,10,15,20,30,40,50,60,70,80,90,100,120,140,160,180,200,230,260,290,320,350,400,450,500,600,700,800)
-rsets = np.asarray(run_sets,dtype=int)
 
-for rset in run_sets:  # This loops takes several hours
+for rset in run_sets:  # This loop takes several hours
     standard_results.append(sim.run_simulation(rset,'standard'))
     platform_results.append(sim.run_simulation(rset,'platform'))
     branch_results.append(sim.run_simulation(rset,'branch'))
@@ -42,6 +43,9 @@ for i in range(len(run_sets)):
 
 
 import matplotlib.pyplot as plt
+
+rsets = np.asarray(run_sets,dtype=int)
+
 fig = plt.figure()
 ax = fig.gca()
 ax.set_yticks(np.arange(0,1.05,0.05))
