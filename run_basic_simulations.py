@@ -8,7 +8,8 @@ Created on Thu May 22 11:08:48 2014
 import basic_simulator as s
 import numpy as np
 
-sim = s.simulator()
+#sim = s.simulator(time_factor=True)
+sim = s.simulator(test_edit_factor=True,full_simulation=False)
 sim.prepare_simulation()
 
 standard_results = list()
@@ -18,6 +19,10 @@ mixed_results = list()
 
 #Sizes of the running sets, to graph number of caught failures
 run_sets = (5,10,15,20,30,40,50,60,70,80,90,100,120,140,160,180,200,230,260,290,320,350,400,450,500,600,700,800)
+basic_run_sets = (20,50,70,100,160,230,290,350,400,500,600,700,800)
+basic_run_sets = (500,)
+
+run_sets = basic_run_sets
 
 for rset in run_sets:  # This loop takes several hours
     standard_results.append(sim.run_simulation(rset,'standard'))

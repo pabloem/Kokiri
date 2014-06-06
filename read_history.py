@@ -18,9 +18,12 @@ FIELDS (DICT)
     ALL the DICTs inside FIELDS are indexed by TEST_RUN_ID
 """
 import logging
-def get_test_history(tr_filename):
+import re
+import csv
+import ipdb
+
+def get_test_history(tr_filename,branch_list):
     logger = logging.getLogger('extract')
-    import csv
     #tr_filename = 'csv/fails_ptest_run.csv'
     tr_file = open(tr_filename,'r')
     tr_reader = csv.reader(tr_file)
@@ -96,7 +99,6 @@ Returns:
 """
 def get_failure_history(tf_filename):
     logger = logging.getLogger('extract')
-    import csv
     #tf_filename = 'csv/test_fail_history.csv'
     tf_file = open(tf_filename,'r')
     tf = csv.reader(tf_file)
@@ -150,7 +152,8 @@ def load_failures(test_info, failure_per_test_run,\
     count_fails = 0
     for fail in t_fails:
         count_fails = count_fails + 1
-        test_name = fail[1]+' '+fail[2]
+        #test_name = fail[1]+' '+fail[2]
+        test_name = fail[1]
         #Adding the test_run number to the test_info
         if test_name in test_info:
             if 'failures' not in test_info[test_name]:
@@ -167,7 +170,115 @@ FUNCTION: open_test_history
 This function simply returns the csv read handler for the test history file
 """
 def open_test_history(file_name='csv/test_fail_history_inv.csv'):
-    import csv
+    tr_list = list()
     f = open(file_name,'r')
     tr_reader = csv.reader(f)
-    return tr_reader
+    for elm in tr_reader:
+        tr_list.append(elm)
+    return tr_list
+    #return tr_reader
+
+"""
+FUNCTION: open_test_history
+This function simply returns the csv read handler for the file of change
+history of test files
+Query:
+select 
+    ch.when_timestamp, 
+    concat('./',substring_index(filename,' ',1)),
+    ch.branch, 
+    ch.revision 
+from 
+    change_files cf,
+    changes ch 
+where 
+    filename like '%mysql-test%.result %' and 
+    ch.changeid = cf.changeid 
+order by 1;
+"""
+def get_test_file_change_history(test_info,file_name='csv/changes_in_testfiles.csv'):
+    logger = logging.getLogger('extract')
+    logger.debug('get_test_file_change_history was called')
+    
+    branches = dict()
+    brf = open('csv/fail_branches.csv','r')
+    for br in brf:
+        branches[br.strip()] = 1
+    brf.close()
+    
+    f = open(file_name,'r')
+    
+    mysql_test_dir = re.compile('\./mysql-test(/r)?/([^/]*)\.result$')
+    in_suite_dir = re.compile('\./mysql-test/suite/([^/]*)(/r)?/([^/]*)\.result$')
+    overlay = re.compile('\./.*/mysql-test/([^/]*)(/r)?/([^/]*)\.result$')
+    
+    new_csv = list()
+    
+    """
+    Query:
+    select 
+        ch.TIMESTAMP, 
+        cf.FILENAME,
+        ch.branch, 
+        ch.revision 
+    from 
+        change_files cf,
+        changes ch 
+    where 
+        filename like '%mysql-test%.result %' and 
+        ch.changeid = cf.changeid order by 1
+    """
+    #TIMESTAMP = 0
+    FILENAME = 1
+    BRANCH = 2
+    #REVISION = 3
+    #ipdb.set_trace()
+    
+    rdr = csv.reader(f)
+    for row in rdr:
+        if row[BRANCH] not in branches:
+            continue
+        
+        test_file = row[FILENAME]
+    
+        matched = False
+        main_suite = False
+        
+        if not matched:
+            mch = mysql_test_dir.match(test_file)
+        if not matched and mch:
+            test_name = mch.group(2)
+            matched = True
+            main_suite = True
+        
+        if not matched:
+            mch = in_suite_dir.match(test_file)
+        if not matched and mch:
+            test_name = mch.group(1)+'.'+mch.group(3)
+            matched = True
+        
+        if not matched:
+            mch = overlay.match(test_file)
+        if not matched and mch:
+            test_name = mch.group(1)+'.'+mch.group(3)
+            matched = True
+        
+        if not matched:
+            continue
+        if main_suite and test_name not in test_info:
+            if 'main.'+test_name in test_info:
+                test_name = 'main.'+test_name
+            else:
+                continue
+                
+        if not main_suite and test_name not in test_info:
+            continue
+        
+        if 'editions' not in test_info[test_name]:
+            test_info[test_name]['editions'] = list()
+
+        row[FILENAME] = test_name            
+        #test_info[test_name]['editions'].append(row)
+        new_csv.append(row)
+        
+    return new_csv

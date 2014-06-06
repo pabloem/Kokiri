@@ -46,8 +46,10 @@ def extract_names_from_failures():
     count = 0
     for row in reader:
         logger.debug("row: "+str(row))
-        tests[row[0]+' '+row[1]] = dict()
-        (tests[row[0]+' '+row[1]])['time'] = 1
+        tests[row[0]] = dict()
+        (tests[row[0]])['time'] = 1
+        #tests[row[0]+' '+row[1]] = dict()
+        #(tests[row[0]+' '+row[1]])['time'] = 1
         count=count+1
     logger.info("Read "+str(count)+" test names from "+filename)
     return tests
