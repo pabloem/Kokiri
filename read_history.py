@@ -212,8 +212,6 @@ def get_test_file_change_history(test_info,file_name='csv/changes_in_testfiles.c
     in_suite_dir = re.compile('\./mysql-test/suite/([^/]*)(/r)?/([^/]*)\.result$')
     overlay = re.compile('\./.*/mysql-test/([^/]*)(/r)?/([^/]*)\.result$')
     
-    new_csv = list()
-    
     """
     Query:
     select 
@@ -275,10 +273,9 @@ def get_test_file_change_history(test_info,file_name='csv/changes_in_testfiles.c
             continue
         
         if 'editions' not in test_info[test_name]:
-            test_info[test_name]['editions'] = list()
+            test_info[test_name]['editions'] = dict()
+        if row[BRANCH] not in test_info[test_name]['editions']:
+            test_info[test_name]['editions'][row[BRANCH]] = list()
 
-        row[FILENAME] = test_name            
-        #test_info[test_name]['editions'].append(row)
-        new_csv.append(row)
-        
-    return new_csv
+        row[FILENAME] = test_name
+        test_info[test_name]['editions'][row[BRANCH]].append(row)

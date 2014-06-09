@@ -9,7 +9,8 @@ import basic_simulator as s
 import numpy as np
 
 #sim = s.simulator(time_factor=True)
-sim = s.simulator(test_edit_factor=True,full_simulation=False)
+sim = s.simulator(time_factor=True,test_edit_factor=True,full_simulation=False)
+
 sim.prepare_simulation()
 
 standard_results = list()

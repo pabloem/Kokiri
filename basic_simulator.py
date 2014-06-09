@@ -223,7 +223,9 @@ class simulator:
         """
         Now we get the history of test_file editions
         """
-        self.test_f_changes = rh.get_test_file_change_history(test_info=self.test_info)
+        if self.test_edit_factor:
+            self.test_f_changes = \
+                rh.get_test_file_change_history(test_info=self.test_info)
     
     
     """
@@ -299,23 +301,21 @@ class simulator:
         logger = logging.getLogger('simulation')
         num_editions = 0
         TIMESTAMP = 0
-        TEST_NAME = 1
-        BRANCH = 2
-        poppees = list()
+        if 'editions' not in self.test_info[test_name]:
+            return 0
+        if test_run[self.BRANCH] not in self.test_info[test_name]['editions']:
+            return 0
         try:
-            for elm in self.test_f_changes:
+            for elm in self.test_info[test_name]['editions'][test_run[self.BRANCH]]:
                 if int(elm[TIMESTAMP]) > int(test_run[self.TIMESTAMP]):
                     break
-                if elm[TEST_NAME] == test_name and \
-                    elm[BRANCH] == test_run[self.BRANCH]:
-                    poppees.append(elm)
-                    num_editions += 1
+                num_editions += 1
         except:
             ipdb.set_trace()
-        if num_editions > 0:
-            logger.debug('Poppees: '+str(poppees))
-        for elm in poppees:
-            self.test_f_changes.remove(elm)
+        self.test_info[test_name]['editions'][test_run[self.BRANCH]] = \
+            self.test_info[test_name]['editions'][test_run[self.BRANCH]][num_editions:]
+        if len(self.test_info[test_name]['editions'][test_run[self.BRANCH]]) == 0:
+            del self.test_info[test_name]['editions'][test_run[self.BRANCH]]
         return num_editions
 
     """
@@ -418,6 +418,8 @@ class simulator:
             
             if count > self.max_limit:
                 break
+            if self.test_edit_factor:
+                next_run = self.get_next_test_run(test_run,test_hist[tr_index:])
             
             old_qs = dict()
             if simulating: #Only if we are simulating do we need a pr_queue
@@ -503,10 +505,8 @@ class simulator:
                     ran = False
                 
                 editions = 0
-                if self.test_edit_factor:
-                    next_run = self.get_next_test_run(test_run,test_hist[tr_index:])
-                    if next_run is not None:
-                        editions = self.get_number_of_editions(next_run,test_name)
+                if self.test_edit_factor and next_run is not None:
+                    editions = self.get_number_of_editions(next_run,test_name)
                 
                 # Calculate the metric for this test
                 self.calculate_metric[self.metric](test_name,self.test_info,\
