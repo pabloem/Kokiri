@@ -42,12 +42,11 @@ class simulator:
     """ The time_factor determines whether the time-since-last run  """
     """ should affect the relevancy of a test or not """
     time_factor = False
+    RUN_MULTIPLIER = 0.033
     
     """ The test_edit_factor determines whether editions made to   """
     """ test files should affect the relevancy of a test or not    """
     test_edit_factor = False
-    
-    RUN_MULTIPLIER = 0.033
     
     """============================================================="""
     """==============DEBUG LEVELS AND EXPLANATION==================="""
@@ -62,10 +61,10 @@ class simulator:
     ED_DEBUG = 6
     DEEP_DEBUG = 5
     
-    calculate_metric = dict()
+    calculate_metric = None
     test_info = dict()
     fail_per_testrun = dict()
-    test_f_changes = list()
+    test_f_changes = None
     
 
     def calculate_exp_decay(self,test_name, test_info, fail,branch,platform, \
@@ -298,7 +297,6 @@ class simulator:
     edited
     """
     def get_number_of_editions(self,test_run,test_name):
-        logger = logging.getLogger('simulation')
         num_editions = 0
         TIMESTAMP = 0
         if 'editions' not in self.test_info[test_name]:
@@ -320,44 +318,34 @@ class simulator:
 
     """
     Function: calculate_first_time_and_ind
-    This function retrieves the index of a test in a priority queue and whether
-    it is the first time that a failure is encountered on this test
+    The following code finds the position of the test in the 
+    corresponding priority queue, according to the mode that
+    we are running.
     """
-    def calculate_first_time_and_ind(self,old_qs,mode,test_run,test_name):
-        logger = logging.getLogger('simulation')
+    def calculate_ind(self,old_qs,mode,test_run,test_name):
         ind = -1
-        first_time = False
         if mode == self.Mode.standard:
             if 'standard' in self.test_info[test_name][self.metric]:
                 ind = old_qs['standard'].index((-self.test_info[test_name][self.metric]['standard'],test_name))
-            else:
-                first_time = True
         elif mode == self.Mode.branch:
             if test_run[self.BRANCH] in self.test_info[test_name][self.metric] and\
                self.test_info[test_name][self.metric][test_run[self.BRANCH]] > 0.0:
                 ind = old_qs['branch'].index(\
                     (-self.test_info[test_name][self.metric][test_run[self.BRANCH]],\
                     test_name))
-            else:
-                first_time = True
-                logger.debug('First recorded failure of '+test_name)
         elif mode == self.Mode.platform:
             if test_run[self.PLATFORM] in self.test_info[test_name][self.metric] and\
                 self.test_info[test_name][self.metric][test_run[self.PLATFORM]] > 0.0:
                 ind = old_qs['platform'].index(\
                     (-self.test_info[test_name][self.metric][test_run[self.PLATFORM]],\
                     test_name))
-            else:
-                first_time = True
         elif mode == self.Mode.mixed:
             if test_run[self.BRANCH]+' '+test_run[self.PLATFORM] in self.test_info[test_name][self.metric] and\
                 self.test_info[test_name][self.metric][test_run[self.BRANCH]+' '+test_run[self.PLATFORM]] > 0.0:
                 ind = old_qs['mixed'].index(\
                     (-self.test_info[test_name][self.metric][test_run[self.BRANCH]+' '+test_run[self.PLATFORM]],\
                     test_name))
-            else:
-                first_time = True
-        return ind,first_time
+        return ind
         
     """
     Function: get_next_test_run
@@ -370,6 +358,34 @@ class simulator:
             if test_run[self.BRANCH] == t_run[self.BRANCH]:
                 return t_run
         return None
+    
+    """
+    Function: add_to_pos_dis_array
+    This function is in charge of making the pos_dist array longer if necessary,
+    and then adding to the distribution of positions
+    """
+    def add_to_pos_dis_array(self,pos_dist,ind):
+        # If we need to increase the size of the pos_dist array, we do
+        # up to the next 100
+        if ind >= 0 and ind >= pos_dist.size:
+            sz = ind+1
+            chg_size = sz if sz % 100 == 0 else sz + 100 - sz % 100
+            prev_size = pos_dist.size
+            pos_dist = numpy.resize(pos_dist,chg_size)
+            pos_dist[prev_size:pos_dist.size] = 0 #Making new elements zero
+        if ind >= 0:
+            pos_dist[ind] += 1
+            
+    """
+    Function: can_be_added_to_pq
+    This function returns True if a test can be properly added to the priority
+    queues (this is determined by checking if it has a relevancy quotient)
+    """
+    def can_be_added_to_pq(self,test):
+        tag = 'standard'            
+        if self.metric in test and tag in test[self.metric]:
+            return True
+        return False
 
     """
     Function: run_simulation
@@ -391,25 +407,25 @@ class simulator:
         logger = logging.getLogger('simulation')
         test_hist = rh.open_test_history()
         count = 0
-        missed_failures = 0
-        caught_failures = 0
+        missed_failures = 0 # These are failures that would have been caught if the test had run
+        caught_failures = 0 # These are failures that are caught - because the test ran
+        cheated_info = 0 # These are failures that would not have been caught - but we let pass as caught
         simulating = False # This parameter is turned to true after the learning round
         pq = dict() # We keep a dict of priority queues
         pos_dist = numpy.zeros(dtype=int,shape=1000) # Distribution of positions of tests
         
-        cheated_info = 0
         logger.info('Simulating. RS: '+str(running_set)+' Mode: '+mode+' Full sim: '+str(self.full_simulation))
-        
+            
         """
-        test_hist is the file handler from the query of test_run history. It 
-        returns one-by-one the test_runs.
+        test_hist is the list from the query of test_run history. It returns 
+        one-by-one the test_runs.
         In the following loop, we iterate over each test run, from the first to
         the last
         """
         for tr_index,test_run in enumerate(test_hist):
             if count == self.learning_set:
-                # First 2000 iterations are the learning set. After that, the
-                # simulation starts.
+                # First self.learning_set iterations are the learning set. 
+                # After that, the simulation starts.
                 simulating = True
                 logger.debug("==================================================")
                 logger.debug("==============SIMULATION HAS BEGUN================")
@@ -417,7 +433,9 @@ class simulator:
             count=count+1
             
             if count > self.max_limit:
-                break
+                break # If we have iterated the max_limit of test_runs, we break out
+            
+            next_run = None
             if self.test_edit_factor:
                 next_run = self.get_next_test_run(test_run,test_hist[tr_index:])
             
@@ -430,7 +448,7 @@ class simulator:
                  - The standard queue, 
                  - The queue per-platform, 
                  - The queue per-branch, and
-                 - The mixed per-branch/platform queue.
+                 - The mixed per-branch/platform queue.advanced_simulator-corr
                 The priority queues are in the  pq  dictionary.
                 
                 Since the queues are only built in simulation-mode, the 
@@ -452,58 +470,44 @@ class simulator:
             fails is a list of all the tests that failed in this test_run. Empty
             if no tests failed in this test run.
             """
-            
-            found_fails = 0
             for test_name in self.test_info:
                 fail = int(test_name in fails) #1 if the test failed, 0 if it did not
-                ind = -1
-                first_time = False
+                ind = -1 # This is the index of the test in the priority queue (-1 if not part of it)
                 
-                if fail == 1:
-                    found_fails += 1
-                #The found_fails variable is used later for data sanity checks
-                   
                 if simulating and fail == 1:
-                    if self.metric not in self.test_info[test_name]:
-                        first_time = True
-                        logger.debug('Very first recorded failure of '+test_name)
                     """
-                    The following code finds the position of the test in the 
-                    corresponding priority queue, according to the mode that
-                    we are running.
-                    The position is accumulated on the pos_dist array, which
-                    contains the distribution of the positions of tests
-                    """
-                    ind, first_time = self.calculate_first_time_and_ind(old_qs,mode,test_run,test_name)
+                    This code runs for tests that would fail if they run, and if
+                    they don't run, should be recorded as a missed failure.
                     
-                    if not first_time:
-                        if ind >= pos_dist.size:
-                            # If we need to increase the size of the pos_dist array, we do
-                            # up to the next 100
-                            sz = ind+1
-                            chg_size = sz if sz % 100 == 0 else sz + 100 - sz % 100
-                            prev_size = pos_dist.size
-                            pos_dist = numpy.resize(pos_dist,chg_size)
-                            pos_dist[prev_size:pos_dist.size] = 0 #Making new elements zero
-                        pos_dist[ind] += 1
-                        
-                    # If the test is not in the running set, the FAILURE is not recognized
-                    # and is marked as missed
-                    if simulating and self.full_simulation and ind > running_set and fail == 1: 
+                    The position is accumulated on the pos_dist array, which
+                    contains the distribution of the positions of tests.
+                    """
+                    ind = self.calculate_ind(old_qs,mode,test_run,test_name)
+                    self.add_to_pos_dis_array(pos_dist,ind)
+                    
+                    """
+                    Conditions to MISS a failure:
+                    1. We are running a full simulation
+                    2. The test will fail if it runs
+                    3. The test is NOT inside the running set (this it does not run):
+                        - Its position in the priority queue is beyond the running set OR
+                        - It is not in the priority queue (not competing for resources)
+                    """
+                    if self.full_simulation and fail == 1 and \
+                        (ind < 0 or ind > running_set):
                         fail = 0
                         missed_failures += 1
-                    elif fail == 1:
-                        # If the test is in the running set, the FAILURE is recognized and caught
-                        caught_failures += 1
+                    
+                    caught_failures += fail
 
-                if not simulating or (ind >= 0 and ind < self.learning_set):
-                    # If we are not simulating, or the index is inside the 
-                    # learning set, we consider the test as run
-                    ran = True
-                else:
-                    # Otherwise, we want to raise the relevancy test for this test
+                # If we are simulating, and the test is not inside the 
+                # learning_set, we consider it as NOT RUNNING. Otherwise, we 
+                # consider it as running
+                ran = True
+                if simulating and (ind > self.learning_set or ind < 0):
                     ran = False
                 
+                # This code runs only for simulations with test_edit_factor
                 editions = 0
                 if self.test_edit_factor and next_run is not None:
                     editions = self.get_number_of_editions(next_run,test_name)
@@ -513,25 +517,22 @@ class simulator:
                             fail,test_run[self.BRANCH],test_run[self.PLATFORM],\
                             ran,editions)
                 
-                # Add the test to the priority queue if we are in simulation mode
-                if simulating and 'standard' in self.test_info[test_name][self.metric]:
+                # Add the test to the priority queue if we are in simulation mode,
+                # and the test has failed at least once
+                if simulating and self.can_be_added_to_pq(self.test_info[test_name]):
                     self.add_to_pr_queue(self.test_info,test_name,pq,\
                                         test_run[self.PLATFORM],test_run[self.BRANCH])
-                                        
-                # Keeping track of how many times we 'cheat' by considering 
-                # a failure that we could not have known about
-                if first_time:
-                    cheated_info += 1
-            
-            # Do logging after each iteration
-            if simulating and found_fails > 0:
-                logger.debug('FAILS FOUND: '+str(found_fails)+' | KNOWN: '+str(len(fails)))
-                
-                q = self.assign_pq(pq,mode,test_run[self.BRANCH],test_run[self.PLATFORM])
-                logger.debug('PR_QUEUE: '+str(heapq.nsmallest(10,q)))
-                logger.debug('BR: '+test_run[self.BRANCH]+' | PL: '+test_run[self.PLATFORM])
+
+            # Do logging after each iteration in simulation mode
             if simulating:
-                logger.debug('\n')
+                q = self.assign_pq(pq,mode,test_run[self.BRANCH],test_run[self.PLATFORM])
+                logger.debug('PR_QUEUE: '+str(heapq.nsmallest(5,q)))
+                logger.debug('BR: '+test_run[self.BRANCH]+' | PL: '+\
+                             test_run[self.PLATFORM]+'\n')
+        
+        """
+        END OF THE SIMULATION - Final logging
+        """
         logger.info('MF: '+str(missed_failures)+' | CF: '+str(caught_failures)+\
                     ' | TF: '+str(missed_failures+caught_failures) +\
                     ' | CHEAT: '+str(cheated_info))
@@ -550,9 +551,11 @@ class simulator:
                          relevancy of a test
      - learning_set -    This is the number of entries to use as a training set
                          before attempting to predict failures.
+     - test_edit_factor -This activates the revision of test file editions to-
+                         determine if a file should be run or not.
     """
     def __init__(self,max_limit=5000,full_simulation=True,metric='exp_decay', \
-                learning_set = 2000,time_factor=False,test_edit_factor=False):
+                learning_set = 2000,time_factor=False,test_edit_factor=False,do_logging = False):
         self.max_limit = max_limit
         self.full_simulation = full_simulation       
         self.metric = metric
@@ -566,18 +569,23 @@ class simulator:
         logging.addLevelName(self.DEEP_DEBUG,'DEEP_DEBUG')
         
         logger = logging.getLogger('simulation')
-        logger.setLevel(logging.DEBUG)
-        fh = logging.FileHandler('logs/simulation_20140507.txt')
-        fh.setLevel(logging.DEBUG)
-        
-        ff = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        cf = logging.Formatter('%(asctime)s - %(message)s')
-        fh.setFormatter(ff)
-        logger.addHandler(fh)
-        ch = logging.StreamHandler()
-        ch.setLevel(logging.INFO)
-        ch.setFormatter(cf)
-        logger.addHandler(ch)
+        if do_logging and logger.handlers == []:
+            logger.setLevel(logging.DEBUG)
+            fh = logging.FileHandler('logs/simulation_20140507.txt')
+            fh.setLevel(logging.DEBUG)
+            
+            ff = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            cf = logging.Formatter('%(asctime)s - %(message)s')
+            fh.setFormatter(ff)
+            ch = logging.StreamHandler()
+            ch.setLevel(logging.INFO)
+            ch.setFormatter(cf)
+            logger.addHandler(ch)
+            logger.addHandler(fh)
+        else:
+            logger.setLevel(logging.CRITICAL)
+            for hdlr in logger.handlers:
+                logger.removeHandler(hdlr)
         
         self.calculate_metric = dict()
         self.calculate_metric['exp_decay'] = self.calculate_exp_decay

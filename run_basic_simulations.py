@@ -5,7 +5,7 @@ Created on Thu May 22 11:08:48 2014
 @author: pablo
 """
 
-import basic_simulator as s
+import simulator as s
 import numpy as np
 
 #sim = s.simulator(time_factor=True)
