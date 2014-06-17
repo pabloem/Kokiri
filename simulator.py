@@ -64,7 +64,20 @@ class simulator:
     calculate_metric = None
     test_info = dict()
     fail_per_testrun = dict()
-    test_f_changes = None
+    
+    """
+    Function: cleanup
+    This function is in charge of resetting the simulator to its state before
+    running any simulations. It makes sure to 
+    """
+    def cleanup(self):
+        for test_name in self.test_info:
+            if self.metric in self.test_info[test_name]:
+                self.test_info[test_name].pop(self.metric)
+            if 'passed_editions' in self.test_info[test_name]:
+                self.test_info[test_name]['editions'] = \
+                    self.test_info[test_name]['passed_editions']
+                self.test_info[test_name].pop('passed_editions')
     
 
     def calculate_exp_decay(self,test_name, test_info, fail,branch,platform, \
@@ -223,8 +236,7 @@ class simulator:
         Now we get the history of test_file editions
         """
         if self.test_edit_factor:
-            self.test_f_changes = \
-                rh.get_test_file_change_history(test_info=self.test_info)
+            rh.get_test_file_change_history(test_info=self.test_info)
     
     
     """
@@ -308,6 +320,11 @@ class simulator:
                 if int(elm[TIMESTAMP]) > int(test_run[self.TIMESTAMP]):
                     break
                 num_editions += 1
+                if 'passed_editions' not in self.test_info[test_name]:
+                    self.test_info[test_name]['passed_editions'] = dict()
+                if test_run[self.BRANCH] not in self.test_info[test_name]['passed_editions']:
+                    self.test_info[test_name]['passed_editions'][test_run[self.BRANCH]] = list()
+                self.test_info[test_name]['passed_editions'].append(elm)
         except:
             ipdb.set_trace()
         self.test_info[test_name]['editions'][test_run[self.BRANCH]] = \
@@ -315,6 +332,21 @@ class simulator:
         if len(self.test_info[test_name]['editions'][test_run[self.BRANCH]]) == 0:
             del self.test_info[test_name]['editions'][test_run[self.BRANCH]]
         return num_editions
+        
+    """
+    Function: relevant_queue
+    This function returns the relevant queue, where we want to get the jobs from
+    in this test run.
+    """
+    def relevant_queue(self,mode,old_qs):
+        if mode == self.Mode.standard:
+            return old_qs['standard']
+        if mode == self.Mode.branch:
+            return old_qs['branch']
+        if mode == self.Mode.platform:
+            return old_qs['platform']
+        if mode == self.Mode.mixed:
+            return old_qs['mixed']
 
     """
     Function: calculate_first_time_and_ind
@@ -322,29 +354,23 @@ class simulator:
     corresponding priority queue, according to the mode that
     we are running.
     """
-    def calculate_ind(self,old_qs,mode,test_run,test_name):
+    def calculate_ind(self,queue,mode,test_run,test_name):
         ind = -1
+        tag = None
         if mode == self.Mode.standard:
-            if 'standard' in self.test_info[test_name][self.metric]:
-                ind = old_qs['standard'].index((-self.test_info[test_name][self.metric]['standard'],test_name))
+            tag = 'standard'
         elif mode == self.Mode.branch:
-            if test_run[self.BRANCH] in self.test_info[test_name][self.metric] and\
-               self.test_info[test_name][self.metric][test_run[self.BRANCH]] > 0.0:
-                ind = old_qs['branch'].index(\
-                    (-self.test_info[test_name][self.metric][test_run[self.BRANCH]],\
-                    test_name))
+            tag = test_run[self.BRANCH]
         elif mode == self.Mode.platform:
-            if test_run[self.PLATFORM] in self.test_info[test_name][self.metric] and\
-                self.test_info[test_name][self.metric][test_run[self.PLATFORM]] > 0.0:
-                ind = old_qs['platform'].index(\
-                    (-self.test_info[test_name][self.metric][test_run[self.PLATFORM]],\
-                    test_name))
+            tag = test_run[self.PLATFORM]
         elif mode == self.Mode.mixed:
-            if test_run[self.BRANCH]+' '+test_run[self.PLATFORM] in self.test_info[test_name][self.metric] and\
-                self.test_info[test_name][self.metric][test_run[self.BRANCH]+' '+test_run[self.PLATFORM]] > 0.0:
-                ind = old_qs['mixed'].index(\
-                    (-self.test_info[test_name][self.metric][test_run[self.BRANCH]+' '+test_run[self.PLATFORM]],\
-                    test_name))
+            tag = test_run[self.BRANCH]+' '+test_run[self.PLATFORM]
+            
+            
+        if tag in self.test_info[test_name][self.metric] and\
+            self.test_info[test_name][self.metric][tag] > 0.0:
+            ind = queue.index(\
+                (-self.test_info[test_name][self.metric][tag],test_name))
         return ind
         
     """
@@ -409,7 +435,6 @@ class simulator:
         count = 0
         missed_failures = 0 # These are failures that would have been caught if the test had run
         caught_failures = 0 # These are failures that are caught - because the test ran
-        cheated_info = 0 # These are failures that would not have been caught - but we let pass as caught
         simulating = False # This parameter is turned to true after the learning round
         pq = dict() # We keep a dict of priority queues
         pos_dist = numpy.zeros(dtype=int,shape=1000) # Distribution of positions of tests
@@ -482,7 +507,8 @@ class simulator:
                     The position is accumulated on the pos_dist array, which
                     contains the distribution of the positions of tests.
                     """
-                    ind = self.calculate_ind(old_qs,mode,test_run,test_name)
+                    ind = self.calculate_ind(self.relevant_queue(mode,old_qs),\
+                                            mode,test_run,test_name)
                     self.add_to_pos_dis_array(pos_dist,ind)
                     
                     """
@@ -535,7 +561,7 @@ class simulator:
         """
         logger.info('MF: '+str(missed_failures)+' | CF: '+str(caught_failures)+\
                     ' | TF: '+str(missed_failures+caught_failures) +\
-                    ' | CHEAT: '+str(cheated_info))
+                    ' | RECALL: '+str(caught_failures/(missed_failures+caught_failures)))
                     
         return self.prepare_result(pos_dist,missed_failures,caught_failures,mode)
     
