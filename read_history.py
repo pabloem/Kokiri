@@ -154,11 +154,6 @@ def load_failures(test_info, failure_per_test_run,\
         count_fails = count_fails + 1
         #test_name = fail[1]+' '+fail[2]
         test_name = fail[1]
-        #Adding the test_run number to the test_info
-        if test_name in test_info:
-            if 'failures' not in test_info[test_name]:
-                test_info[test_name]['failures'] = list()
-            test_info[test_name]['failures'].append(fail[0])
         #Adding the test_name to the test_run info
         if fail[0] not in failure_per_test_run:
             failure_per_test_run[fail[0]] = list()
@@ -196,6 +191,8 @@ where
     ch.changeid = cf.changeid 
 order by 1;
 """
+#TODO THE BRANCH column in the changes_in_testfiles is not parsed correctly
+#It is missing parsing for lp:~.* branch names 
 def get_test_file_change_history(test_info,file_name='csv/changes_in_testfiles.csv'):
     logger = logging.getLogger('extract')
     logger.debug('get_test_file_change_history was called')
@@ -209,8 +206,9 @@ def get_test_file_change_history(test_info,file_name='csv/changes_in_testfiles.c
     f = open(file_name,'r')
     
     mysql_test_dir = re.compile('\./mysql-test(/r)?/([^/]*)\.result$')
-    in_suite_dir = re.compile('\./mysql-test/suite/([^/]*)(/r)?/([^/]*)\.result$')
+    in_suite_dir = re.compile('\./(.*/)?mysql-test/suite/([^/]*)(/r|/t)?/([^/]*)\.result$')
     overlay = re.compile('\./.*/mysql-test/([^/]*)(/r)?/([^/]*)\.result$')
+    plugin = re.compile('\./(.*/)?([^/]*)/mysql-test/([^/]*)\.result$')
     
     """
     Query:
@@ -252,13 +250,19 @@ def get_test_file_change_history(test_info,file_name='csv/changes_in_testfiles.c
         if not matched:
             mch = in_suite_dir.match(test_file)
         if not matched and mch:
-            test_name = mch.group(1)+'.'+mch.group(3)
+            test_name = mch.group(2)+'.'+mch.group(4)
             matched = True
         
         if not matched:
             mch = overlay.match(test_file)
         if not matched and mch:
             test_name = mch.group(1)+'.'+mch.group(3)
+            matched = True
+            
+        if not matched:
+            mch = plugin.match(test_file)
+        if not matched and mch:
+            test_name = mch.group(2)+'.'+mch.group(3)
             matched = True
         
         if not matched:

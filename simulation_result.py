@@ -15,3 +15,4 @@ class simulation_result:
     max_limit = 0
     pos_distribution = None
     mode = ''
+    run_tests = 0

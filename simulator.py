@@ -14,6 +14,7 @@ import name_extractor as ne
 import read_history as rh
 import heapq
 import simulation_result
+import random
 
 import ipdb
 
@@ -37,6 +38,9 @@ class simulator:
     full_simulation=True
     metric='exp_decay'
     learning_set = 2000
+    
+    """ If the running set is not full, run more tests at random    """
+    randomize = False
     
     
     """ The time_factor determines whether the time-since-last run  """
@@ -75,9 +79,13 @@ class simulator:
             if self.metric in self.test_info[test_name]:
                 self.test_info[test_name].pop(self.metric)
             if 'passed_editions' in self.test_info[test_name]:
-                self.test_info[test_name]['editions'] = \
-                    self.test_info[test_name]['passed_editions']
-                self.test_info[test_name].pop('passed_editions')
+                for branch in self.test_info[test_name]['passed_editions']:
+                    extra = list()
+                    if branch in self.test_info[test_name]['editions']:
+                        extra = self.test_info[test_name]['editions'][branch]
+                    self.test_info[test_name]['editions'][branch] = \
+                        self.test_info[test_name]['passed_editions'][branch]+extra
+                del self.test_info[test_name]['passed_editions']
     
 
     def calculate_exp_decay(self,test_name, test_info, fail,branch,platform, \
@@ -243,7 +251,7 @@ class simulator:
     Function prepare_result
     This function prepares and outputs the result object of a simulation
     """
-    def prepare_result(self,pos_dist,missed_fails,caught_fails,mode):
+    def prepare_result(self,pos_dist,missed_fails,caught_fails,mode,run_tests):
         res = simulation_result.simulation_result()
         res.training_set = self.learning_set
         
@@ -254,6 +262,7 @@ class simulator:
         res.missed_failures = missed_fails
         res.pos_distribution = pos_dist
         res.mode = mode
+        res.run_tests = run_tests        
         
         return res
     
@@ -324,7 +333,7 @@ class simulator:
                     self.test_info[test_name]['passed_editions'] = dict()
                 if test_run[self.BRANCH] not in self.test_info[test_name]['passed_editions']:
                     self.test_info[test_name]['passed_editions'][test_run[self.BRANCH]] = list()
-                self.test_info[test_name]['passed_editions'].append(elm)
+                self.test_info[test_name]['passed_editions'][test_run[self.BRANCH]].append(elm)
         except:
             ipdb.set_trace()
         self.test_info[test_name]['editions'][test_run[self.BRANCH]] = \
@@ -438,6 +447,7 @@ class simulator:
         simulating = False # This parameter is turned to true after the learning round
         pq = dict() # We keep a dict of priority queues
         pos_dist = numpy.zeros(dtype=int,shape=1000) # Distribution of positions of tests
+        run_tests = 0 # This is to calculate the number of tests ran during simulation mode
         
         logger.info('Simulating. RS: '+str(running_set)+' Mode: '+mode+' Full sim: '+str(self.full_simulation))
             
@@ -448,6 +458,7 @@ class simulator:
         the last
         """
         for tr_index,test_run in enumerate(test_hist):
+            tests_run_now = 0
             if count == self.learning_set:
                 # First self.learning_set iterations are the learning set. 
                 # After that, the simulation starts.
@@ -465,6 +476,8 @@ class simulator:
                 next_run = self.get_next_test_run(test_run,test_hist[tr_index:])
             
             old_qs = dict()
+            randomized_tests = 0 # The number of tests in the tail that we will run
+            
             if simulating: #Only if we are simulating do we need a pr_queue
                 """
                 Priority queues are built every iteration, listing the tests by
@@ -483,10 +496,21 @@ class simulator:
                 """
                 needed_queues = dict()
                 self.rearrange_queues(needed_queues,old_qs,pq,test_run)
+                
+                if self.randomize and len(self.relevant_queue(mode,old_qs)) < running_set:
+                    randomized_tests = running_set - len(self.relevant_queue(mode,old_qs))
+                    logger.debug('Rand.tests: ' + str(randomized_tests)+' | Len queue: '+\
+                                str(len(self.relevant_queue(mode,old_qs))))
+                    run_tests += len(self.relevant_queue(mode,old_qs))
+                    tests_run_now = len(self.relevant_queue(mode,old_qs))
+                else:
+                    run_tests += running_set
+                    tests_run_now = running_set
                                 
             if int(test_run[self.RUN_ID]) in self.fail_per_testrun:
                 logger.debug('Test run #'+test_run[self.RUN_ID]+' had '+ \
-                    str(len(self.fail_per_testrun[int(test_run[self.RUN_ID])])) +' failures')
+                    str(len(self.fail_per_testrun[int(test_run[self.RUN_ID])])) +\
+                    ' failures')
                 fails = self.fail_per_testrun[int(test_run[self.RUN_ID])]
             else:
                 logger.debug('Test run #'+str(test_run[self.RUN_ID])+' had no failures')
@@ -495,7 +519,8 @@ class simulator:
             fails is a list of all the tests that failed in this test_run. Empty
             if no tests failed in this test run.
             """
-            for test_name in self.test_info:
+
+            for test_ind,test_name in enumerate(self.test_info):
                 fail = int(test_name in fails) #1 if the test failed, 0 if it did not
                 ind = -1 # This is the index of the test in the priority queue (-1 if not part of it)
                 
@@ -511,6 +536,23 @@ class simulator:
                                             mode,test_run,test_name)
                     self.add_to_pos_dis_array(pos_dist,ind)
                     
+                """
+                If the test doesn't have a relevancy score, and we have enough
+                space to run extra tests, we'll select a few tests randomly
+                and run them. 
+                The strategy to select the tests seems not 100%
+                uniform, but good enough:
+                http://stackoverflow.com/a/48089/1255356
+                """
+                if self.randomize and ind == -1 and randomized_tests > 0:
+                    prob = (randomized_tests+0.0)/(len(self.test_info)-test_ind)
+                    if random.random() <= prob:
+                        ind = 1
+                        run_tests += 1
+                        tests_run_now += 1
+                        randomized_tests -= 1
+                        
+                if simulating and fail == 1:
                     """
                     Conditions to MISS a failure:
                     1. We are running a full simulation
@@ -526,12 +568,16 @@ class simulator:
                     
                     caught_failures += fail
 
+                
                 # If we are simulating, and the test is not inside the 
                 # learning_set, we consider it as NOT RUNNING. Otherwise, we 
                 # consider it as running
                 ran = True
                 if simulating and (ind > self.learning_set or ind < 0):
                     ran = False
+                
+                if simulating and ran:
+                    run_tests += 1
                 
                 # This code runs only for simulations with test_edit_factor
                 editions = 0
@@ -551,8 +597,9 @@ class simulator:
 
             # Do logging after each iteration in simulation mode
             if simulating:
-                q = self.assign_pq(pq,mode,test_run[self.BRANCH],test_run[self.PLATFORM])
-                logger.debug('PR_QUEUE: '+str(heapq.nsmallest(5,q)))
+                #q = self.assign_pq(pq,mode,test_run[self.BRANCH],test_run[self.PLATFORM])
+                #logger.debug('PR_QUEUE: '+str(heapq.nsmallest(5,q)))
+                logger.debug('TESTS_RUN: '+str(tests_run_now))
                 logger.debug('BR: '+test_run[self.BRANCH]+' | PL: '+\
                              test_run[self.PLATFORM]+'\n')
         
@@ -561,9 +608,10 @@ class simulator:
         """
         logger.info('MF: '+str(missed_failures)+' | CF: '+str(caught_failures)+\
                     ' | TF: '+str(missed_failures+caught_failures) +\
-                    ' | RECALL: '+str(caught_failures/(missed_failures+caught_failures)))
+                    ' | RECALL: '+str(caught_failures/(missed_failures+caught_failures+0.0))+\
+                    ' | TESTS_RUN: ' + str(run_tests))
                     
-        return self.prepare_result(pos_dist,missed_failures,caught_failures,mode)
+        return self.prepare_result(pos_dist,missed_failures,caught_failures,mode,run_tests)
     
     """
     Function: __init__
@@ -581,13 +629,17 @@ class simulator:
                          determine if a file should be run or not.
     """
     def __init__(self,max_limit=5000,full_simulation=True,metric='exp_decay', \
-                learning_set = 2000,time_factor=False,test_edit_factor=False,do_logging = False):
+                learning_set = 2000,time_factor=False,test_edit_factor=False,\
+                do_logging = False, randomize_tail = False):
         self.max_limit = max_limit
         self.full_simulation = full_simulation       
         self.metric = metric
         self.learning_set = learning_set
         self.time_factor = time_factor
         self.test_edit_factor = test_edit_factor
+        self.randomize = randomize_tail
+        if randomize_tail:
+            random.seed(1)
         
         #TODO the custom logging functions are not properly set yet
         logging.addLevelName(self.WA_DEBUG,'WA_DEBUG')
@@ -595,8 +647,9 @@ class simulator:
         logging.addLevelName(self.DEEP_DEBUG,'DEEP_DEBUG')
         
         logger = logging.getLogger('simulation')
-        if do_logging and logger.handlers == []:
-            logger.setLevel(logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
+        
+        if logger.handlers == []:
             fh = logging.FileHandler('logs/simulation_20140507.txt')
             fh.setLevel(logging.DEBUG)
             
@@ -608,7 +661,7 @@ class simulator:
             ch.setFormatter(cf)
             logger.addHandler(ch)
             logger.addHandler(fh)
-        else:
+        if not do_logging:
             logger.setLevel(logging.CRITICAL)
             for hdlr in logger.handlers:
                 logger.removeHandler(hdlr)
