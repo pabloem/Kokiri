@@ -19,6 +19,7 @@ import random
 import ipdb
 
 class simulator:
+    logger = None
     """============================================================="""
     """===================== IMPORTANT CONSTANTS ==================="""
     """============================================================="""
@@ -90,9 +91,8 @@ class simulator:
 
     def calculate_exp_decay(self,test_name, test_info, fail,branch,platform, \
                             ran, editions):
-        logger = logging.getLogger('simulation')
         if fail < 0 or fail > 1:
-            logger.warning('FAIL input is inappropriate')
+            self.logger.warning('FAIL input is inappropriate')
             return
         
         if editions > 0:
@@ -120,16 +120,14 @@ class simulator:
         if 'standard' in test_info[test_name] and test_info[test_name]['exp_decay']['standard'] > 0:
             pref = 'FAIL' if fail == 1 else 'PASS'
             level = self.ED_DEBUG if fail == 1 else self.DEEP_DEBUG
-            logger.log(level, pref+' '+test_name +\
+            self.logger.log(level, pref+' '+test_name +\
                 ' ed_ind: '+str(test_info[test_name]['exp_decay']))
     
 
     def calculate_weighted_avg(self,test_name,test_info,fail,branch,platform,\
                                 ran,editions):
-        logger = logging.getLogger('simulation')
-        
         if fail < 0 or fail > 1:
-            logger.warning('FAIL input is inappropriate')
+            self.logger.warning('FAIL input is inappropriate')
             return
             
         if editions > 0:
@@ -159,7 +157,7 @@ class simulator:
         if 'standard' in test_info[test_name] and test_info[test_name]['weighted_avg']['standard'] != 0:
             pref = 'FAIL' if fail == 1 else 'PASS'
             level = self.WA_DEBUG if fail == 1 else self.DEEP_DEBUG
-            logger.log(level,pref+' '+test_name +\
+            self.logger.log(level,pref+' '+test_name +\
                 ' wa_ind: '+str(test_info[test_name]['weighted_avg']))
 
     def add_to_pr_queue(self,test_info, test_name, pq,platform,branch):
@@ -185,8 +183,7 @@ class simulator:
     and the mixed priority queue if they have never before been built.
     """
     def build_old_pr_queues(self,needed_queues,old_qs,test_info,branch,plat):
-        logger = logging.getLogger('simulation')
-        logger.debug('build_old_pr_queues was called on: '+str(needed_queues.keys()))
+        self.logger.debug('build_old_pr_queues was called on: '+str(needed_queues.keys()))
         for nm in needed_queues:
             old_qs[nm] = list()
         for test_name in test_info:
@@ -439,7 +436,6 @@ class simulator:
     """
     def run_simulation(self, running_set, mode=Mode.standard):
         #ipdb.set_trace()
-        logger = logging.getLogger('simulation')
         test_hist = rh.open_test_history()
         count = 0
         missed_failures = 0 # These are failures that would have been caught if the test had run
@@ -449,7 +445,7 @@ class simulator:
         pos_dist = numpy.zeros(dtype=int,shape=1000) # Distribution of positions of tests
         run_tests = 0 # This is to calculate the number of tests ran during simulation mode
         
-        logger.info('Simulating. RS: '+str(running_set)+' Mode: '+mode+' Full sim: '+str(self.full_simulation))
+        self.logger.info('Simulating. RS: '+str(running_set)+' Mode: '+mode+' Full sim: '+str(self.full_simulation))
             
         """
         test_hist is the list from the query of test_run history. It returns 
@@ -463,9 +459,9 @@ class simulator:
                 # First self.learning_set iterations are the learning set. 
                 # After that, the simulation starts.
                 simulating = True
-                logger.debug("==================================================")
-                logger.debug("==============SIMULATION HAS BEGUN================")
-                logger.debug("==================================================\n\n")
+                self.logger.debug("==================================================")
+                self.logger.debug("==============SIMULATION HAS BEGUN================")
+                self.logger.debug("==================================================\n\n")
             count=count+1
             
             if count > self.max_limit:
@@ -499,7 +495,7 @@ class simulator:
                 
                 if self.randomize and len(self.relevant_queue(mode,old_qs)) < running_set:
                     randomized_tests = running_set - len(self.relevant_queue(mode,old_qs))
-                    logger.debug('Rand.tests: ' + str(randomized_tests)+' | Len queue: '+\
+                    self.logger.debug('Rand.tests: ' + str(randomized_tests)+' | Len queue: '+\
                                 str(len(self.relevant_queue(mode,old_qs))))
                     run_tests += len(self.relevant_queue(mode,old_qs))
                     tests_run_now = len(self.relevant_queue(mode,old_qs))
@@ -508,12 +504,12 @@ class simulator:
                     tests_run_now = running_set
                                 
             if int(test_run[self.RUN_ID]) in self.fail_per_testrun:
-                logger.debug('Test run #'+test_run[self.RUN_ID]+' had '+ \
+                self.logger.debug('Test run #'+test_run[self.RUN_ID]+' had '+ \
                     str(len(self.fail_per_testrun[int(test_run[self.RUN_ID])])) +\
                     ' failures')
                 fails = self.fail_per_testrun[int(test_run[self.RUN_ID])]
             else:
-                logger.debug('Test run #'+str(test_run[self.RUN_ID])+' had no failures')
+                self.logger.debug('Test run #'+str(test_run[self.RUN_ID])+' had no failures')
                 fails = list()
             """
             fails is a list of all the tests that failed in this test_run. Empty
@@ -599,14 +595,14 @@ class simulator:
             if simulating:
                 #q = self.assign_pq(pq,mode,test_run[self.BRANCH],test_run[self.PLATFORM])
                 #logger.debug('PR_QUEUE: '+str(heapq.nsmallest(5,q)))
-                logger.debug('TESTS_RUN: '+str(tests_run_now))
-                logger.debug('BR: '+test_run[self.BRANCH]+' | PL: '+\
+                self.logger.debug('TESTS_RUN: '+str(tests_run_now))
+                self.logger.debug('BR: '+test_run[self.BRANCH]+' | PL: '+\
                              test_run[self.PLATFORM]+'\n')
         
         """
         END OF THE SIMULATION - Final logging
         """
-        logger.info('MF: '+str(missed_failures)+' | CF: '+str(caught_failures)+\
+        self.logger.info('MF: '+str(missed_failures)+' | CF: '+str(caught_failures)+\
                     ' | TF: '+str(missed_failures+caught_failures) +\
                     ' | RECALL: '+str(caught_failures/(missed_failures+caught_failures+0.0))+\
                     ' | TESTS_RUN: ' + str(run_tests))
@@ -648,6 +644,7 @@ class simulator:
         
         logger = logging.getLogger('simulation')
         logger.setLevel(logging.DEBUG)
+        self.logger = logger
         
         if logger.handlers == []:
             fh = logging.FileHandler('logs/simulation_20140507.txt')
