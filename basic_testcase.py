@@ -10,7 +10,8 @@ import numpy as np
 
 # Here we are running a full simulation. If a test is not in the running set,
 # it will not run, and if it was going to fail, the failure is ignored.
-sim = s.simulator(time_factor=True,randomize_tail=True,full_simulation=True,do_logging=True)
+sim = s.simulator(time_factor=True,randomize_tail=True,full_simulation=True,\
+            do_logging=True,test_edit_factor=True,learning_set=47000,max_limit=50000)
 
 sim.prepare_simulation()
 
@@ -21,7 +22,8 @@ branch_results = list()
 mixed_results = list()
 
 
-basic_run_sets = (20,50,100,150,200,250,350,400,500)
+#basic_run_sets = (20,50,100,150,200,250,350,400,500)
+basic_run_sets = (100,250,500)
 run_sets = basic_run_sets
 
 for rset in run_sets:  # This loop takes several hours
@@ -39,11 +41,12 @@ platform_results1 = list()
 branch_results1 = list()
 mixed_results1 = list()
 
-sim = s.simulator(time_factor=True,randomize_tail=False,full_simulation=True,do_logging=True)
+sim = s.simulator(time_factor=True,randomize_tail=False,full_simulation=True,do_logging=True,test_edit_factor=True)
 
 sim.prepare_simulation()
 
-basic_run_sets = (20,50,100,150,200,250,350,400,500)
+#basic_run_sets = (20,50,100,150,200,250,350,400,500)
+basic_run_sets = (100,250,500)
 run_sets = basic_run_sets
 
 for rset in run_sets:  # This loop takes several hours
@@ -94,6 +97,7 @@ for i in range(len(run_sets)):
     
 
 import matplotlib.pyplot as plt
+plt.ion()
 
 rsets = np.asarray(run_sets,dtype=int)
 
