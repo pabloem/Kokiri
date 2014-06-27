@@ -11,8 +11,7 @@ class simulation_result:
     caught_failures = 0
     metric = ''
     learning_set_size = 0
-    full_simulation = False
+    omniscient = False
     max_limit = 0
     pos_distribution = None
     mode = ''
-    run_tests = 0

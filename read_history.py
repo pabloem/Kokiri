@@ -174,7 +174,31 @@ def open_test_history(file_name='csv/test_fail_history_inv.csv'):
     #return tr_reader
 
 """
-FUNCTION: open_test_history
+FUNCTION:load_file_changes
+This function loads all the information of files that have been changed since 
+the beginning of time - into memory. Careful.
+"""
+def load_file_changes(file_name='csv/files_changed.csv'):
+    branches = dict()
+    brf = open('csv/fail_branches.csv','r')
+    for br in brf:
+        branches[br.strip()] = 1
+    brf.close()
+    
+    f_changes = list()
+    f = open(file_name,'r')
+    rdr = csv.reader(f)
+    
+    BRANCH = 2 # Element of ROW that is the BRANCH where the change was added
+    for row in rdr:
+        if row[BRANCH] not in branches:
+            continue
+        f_changes.append(row)
+    return f_changes
+
+
+"""
+FUNCTION: get_test_file_change_history
 This function simply returns the csv read handler for the file of change
 history of test files
 Query:
