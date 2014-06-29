@@ -9,12 +9,12 @@ Created on Tue May 20 18:42:05 2014
 """============================================================="""
 import logging # Debug logging framework
 import numpy
-import math
+#import math
 import name_extractor as ne
 import read_history as rh
 import heapq
 import simulation_result
-from random import randrange
+import random
 
 import ipdb
 
@@ -198,7 +198,7 @@ class simulator:
         useless_elements = 0
         TIMESTAMP = 0
         FILENAME = 1
-        #BRANCH = 2
+        BRANCH = 2
         for f in self.file_changes:
             count += 1
             if int(f[TIMESTAMP]) < earliest_timestamp:
@@ -215,19 +215,27 @@ class simulator:
             events['file_changes'][f[FILENAME]] += 1
             
         self.file_changes = self.file_changes[useless_elements:]
-        #self.logger.debug('CHCKD: '+str(count)+' | FLS: '+str(len(events['recent_failures']))+'\n')
+        #self.logger.debug('CHCKD: '+str(count)+' | FLS '+str(len(events['recent_failures']))+'\n')
         return events
         
     """
     Function: update_event_information
     This function adds the correlated numbers for all tests
     """
-    def update_event_information(self,fails,events,test_run):
+    def update_event_information(self,fails,events,test_run,count):
+        for test_name in self.test_info:
+            if count % 50 != 0:
+                break
+            if 'fails_per_100' in self.test_info[test_name]:
+                self.test_info[test_name]['fails_per_100'] *= 0.5
         for failed_test in fails:
             # Write down that the test failed
             if 'failures' not in self.test_info[failed_test]:
                 self.test_info[failed_test]['failures'] = 0
             self.test_info[failed_test]['failures'] += 1.0
+            if 'fails_per_100' not in self.test_info[failed_test]:
+                self.test_info[failed_test]['fails_per_100'] = 0
+            self.test_info[failed_test]['fails_per_100'] += 1
             
             # If the test failed in the previous test run, and in the new one, 
             # we write it down
@@ -294,6 +302,8 @@ class simulator:
                                 self.test_info[test_name]['failures'],
                                 self.test_info[test_name]['failures']-1,
                                 self.test_info[test_name]['test_events'])
+        if 'fails_per_100' in self.test_info[test_name]:
+            relevancy -= self.test_info[test_name]['fails_per_100']/100
 #        if relevancy != 0.0:
 #            self.logger.debug('TST: '+test_name+'\tRLV: '+str(relevancy))
         return relevancy
@@ -385,7 +395,12 @@ class simulator:
     """
     def prepare_result(self,pos_dist,missed_failures,caught_failures,mode):
         #TODO add extra information to the run result
-        return pos_dist
+        res = simulation_result.simulation_result()
+        res.pos_distribution = pos_dist
+        res.caught_failures = caught_failures
+        res.missed_failures = missed_failures
+        res.mode = mode
+        return res
             
     """
     Function: run_simulation
@@ -403,7 +418,7 @@ class simulator:
                         or not. [True, False]
     """
     def run_simulation(self, running_set, mode=Mode.mixed):
-        ipdb.set_trace()
+        #ipdb.set_trace()
         self.running_set = running_set
         test_hist = rh.open_test_history()
         count = 0
@@ -457,7 +472,7 @@ class simulator:
                 missed_failures += num_fails-len(fails)
             
             #After the predictions, we store the information that we have so far
-            self.update_event_information(fails,events,test_run)
+            self.update_event_information(fails,events,test_run,count)
             
             self.update_last_run(runs,test_run,runs_pq)
 
@@ -497,7 +512,7 @@ class simulator:
         logger = logging.getLogger('simulation')
         logger.setLevel(logging.DEBUG)
         self.logger = logger
-        sim_id = randrange(1000)
+        sim_id = random.randrange(1000)
         
         if logger.handlers == []:
             fh = logging.FileHandler('logs/simulation_20140507.txt')
