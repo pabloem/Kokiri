@@ -25,6 +25,7 @@ class simulator:
     """============================================================="""
     TIMESTAMP = 0
     RUN_ID = 1
+    NEXT_FILE_CHG = 2
     BRANCH = 7
     PLATFORM = 9
     TYP = 10
@@ -34,6 +35,7 @@ class simulator:
     omniscient = False
     learning_set = 2000
     running_set = None
+    randomize = False
     
     """============================================================="""
     """==============DEBUG LEVELS AND EXPLANATION==================="""
@@ -198,14 +200,16 @@ class simulator:
         useless_elements = 0
         TIMESTAMP = 0
         FILENAME = 1
-        BRANCH = 2
-        for f in self.file_changes:
+        #BRANCH = 2
+        for ind,f in enumerate(self.file_changes[start_run[self.NEXT_FILE_CHG]:]):
             count += 1
             if int(f[TIMESTAMP]) < earliest_timestamp:
                 useless_elements += 1
             if int(f[TIMESTAMP]) < int(start_run[self.TIMESTAMP]):
                 continue
             if int(f[TIMESTAMP]) > int(end_run[self.TIMESTAMP]):
+                end_run[self.NEXT_FILE_CHG] = ind + start_run[self.NEXT_FILE_CHG]
+                self.logger.debug('ER: '+str(end_run)+' | FC: '+str(f))
                 break
 #            if (mode == self.Mode.branch or mode == self.Mode.mixed) and\
 #                    end_run[self.BRANCH] != f[BRANCH]:
@@ -214,8 +218,8 @@ class simulator:
                 events['file_changes'][f[FILENAME]] = 0
             events['file_changes'][f[FILENAME]] += 1
             
-        self.file_changes = self.file_changes[useless_elements:]
-        #self.logger.debug('CHCKD: '+str(count)+' | FLS '+str(len(events['recent_failures']))+'\n')
+        #self.file_changes = self.file_changes[useless_elements:]
+        self.logger.debug('CHCKD: '+str(count)+' | FLS '+str(len(events['recent_failures']))+'\n')
         return events
         
     """
@@ -309,6 +313,29 @@ class simulator:
         return relevancy
     
     """
+    Function: add_random_elems
+    This function selects randomly a number of tests with 0.0 relevance
+    to be run along with the rest
+    """
+    def add_random_elems(self,pr_q,zero_list,n):
+        appended = 0
+        tail = list()
+        if not self.randomize:
+            pr_q = pr_q+zero_list
+            return
+        for ind,elem in enumerate(zero_list):
+            if n-appended == 0:
+                break
+            prob = (n-appended+0.0)/(len(zero_list)-ind)
+            if random.random() <= prob:
+                pr_q.append(elem)
+                appended += 1
+            else:
+                tail.append(elem)
+        pr_q = pr_q+tail
+        self.logger.debug('Appended '+str(appended)+' tests')
+    
+    """
     Function: catch_failures
     This function is in charge of calculating relevancies for tests, and 
     building the priority queue to determine which tests will run.
@@ -320,18 +347,19 @@ class simulator:
             
         TST_NAME = 1 # This is the index of TST NAME in the priority queues
         pr_q = list() # Here is the priority queue
+        zero_list = list()
         zeroes = 0
         for test_name in self.test_info:
             relv = self.calculate_relevancy(test_name,events)
-            if relv == 0.0:
+            if relv != 0.0:
+                heapq.heappush(pr_q,(relv,test_name))
+            else:
                 zeroes +=1
-            heapq.heappush(pr_q,(relv,test_name))
-            
+                zero_list.append((0.0,test_name))
         pr_q = sorted(pr_q,key = lambda elem: elem[0])
-        if zeroes < len(self.test_info):
-            self.logger.debug('PQ: '+str(pr_q[0:5]))
-        else:
-            self.logger.debug('ALL ZEROES')
+        
+        if len(pr_q) < self.running_set:
+            self.add_random_elems(pr_q,zero_list,self.running_set-len(pr_q))
         caught_f = list()
         for ind, elm in enumerate(pr_q):
             if elm[TST_NAME] in fails:
@@ -385,7 +413,7 @@ class simulator:
         runs['standard'] = test_run
         runs[test_run[self.BRANCH]] = test_run
         runs[test_run[self.PLATFORM]] = test_run
-        heapq.heappush(runs_pq,(int(test_run[self.TIMESTAMP]),test_run[self.RUN_ID]))
+        heapq.heappush(runs_pq,(int(test_run[self.TIMESTAMP]),test_run[self.RUN_ID],0))
     
     
     """
@@ -418,7 +446,6 @@ class simulator:
                         or not. [True, False]
     """
     def run_simulation(self, running_set, mode=Mode.mixed):
-        #ipdb.set_trace()
         self.running_set = running_set
         test_hist = rh.open_test_history()
         count = 0
@@ -499,10 +526,11 @@ class simulator:
                          determine if a file should be run or not.
     """
     def __init__(self,max_limit=5000,learning_set = 2000, do_logging = True,
-                 omniscient = False):
+                 omniscient = False, randomize_tail = False):
         self.max_limit = max_limit
         self.learning_set = learning_set
         self.omniscient = omniscient 
+        self.randomize = randomize_tail
         
         #TODO the custom logging functions are not properly set yet
         logging.addLevelName(self.WA_DEBUG,'WA_DEBUG')
@@ -513,6 +541,7 @@ class simulator:
         logger.setLevel(logging.DEBUG)
         self.logger = logger
         sim_id = random.randrange(1000)
+        random.seed(1)
         
         if logger.handlers == []:
             fh = logging.FileHandler('logs/simulation_20140507.txt')

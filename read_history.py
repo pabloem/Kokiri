@@ -168,7 +168,9 @@ def open_test_history(file_name='csv/test_fail_history_inv.csv'):
     tr_list = list()
     f = open(file_name,'r')
     tr_reader = csv.reader(f)
+    NEXT_FILE_CHG = 2
     for elm in tr_reader:
+        elm[NEXT_FILE_CHG] = 0
         tr_list.append(elm)
     return tr_list
     #return tr_reader

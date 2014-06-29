@@ -11,11 +11,11 @@ import simulator as s
 # it will not run, and if it was going to fail, the failure is ignored.
 results = list()
 
-sim = s.simulator(max_limit=5000,learning_set=3000)
+sim = s.simulator(max_limit=5000,learning_set=3000,randomize_tail=True)
 sim.prepare_simulation()
-res = sim.run_simulation(500)
+res = sim.run_simulation(600)
 del sim
-
+"""
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -29,23 +29,29 @@ plt.xlabel('Position in priority queue')
 plt.ylabel('Number of failures encountered')
 
 
-"""
-PLOT RECALL VS RUNNING SET SIZE
+
+#PLOT RECALL VS RUNNING SET SIZE
 
 import numpy as np
 import matplotlib.pyplot as plt
 
 runs = [50,100,200,300,400,500,600,700,800]
-recalls = [0.361,0.552,0.715,0.807,0.842,0.857,0.8657,0.8675,0.8675]
+#recalls = [0.361,0.552,0.715,0.807,0.842,0.857,0.8657,0.8675,0.8675]
+runs = [300,400,500]
+recalls_orig = [0.41,0.446,0.491]
+recalls_new = [0.651,0.7072,0.7374]
 runses = np.asarray(runs,dtype=int)
 recallses = np.asarray(recalls,dtype=float)
+recallses_new = np.asarray(recalls_new,dtype=float)
+recallses_orig = np.asarray(recalls_orig,dtype=float)
 
 fig = plt.figure()
 ax = fig.gca()
 ax.set_yticks(np.arange(0,1.05,0.05))
-plt.plot(runses,recallses,label = 'Recall')
+plt.plot(runses,recallses_orig,label = 'Recall of original "standard" strategy')
+plt.plot(runses,recalls_new,label = 'Recall of new strategy')
 plt.ylim(0,1.1)
-plt.xlim(0,600)
+plt.xlim(200,600)
 plt.xlabel('Size of running set')
 plt.ylabel('Recall')
 plt.legend(loc='lower right')
