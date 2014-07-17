@@ -25,7 +25,8 @@ class simulator:
     """============================================================="""
     TIMESTAMP = 0
     RUN_ID = 1
-    NEXT_FILE_CHG = 2
+    BUILD_ID = 2
+    NEXT_FILE_CHG = 3
     BRANCH = 7
     PLATFORM = 9
     TYP = 10
@@ -36,6 +37,7 @@ class simulator:
     learning_set = 2000
     running_set = None
     randomize = False
+    starter_run = 0
     
     """============================================================="""
     """==============DEBUG LEVELS AND EXPLANATION==================="""
@@ -53,7 +55,15 @@ class simulator:
     test_info = dict()
     file_info = dict()
     fail_per_testrun = dict()
+    # This is now an ITERATOR that returns one by one file changes
+    FC_TEST_RUN = 0
+    #TEST_RUN BRANCH - 1
+    #TEST_RUN PLATFORM - 2
+    #SOURCESTAMP ID - 3
+    FC_FILENAME = 4
+    FC_ACTION = 5
     file_changes = None
+    prev_change = None
     
     """
     Function: get_correlation
@@ -154,18 +164,6 @@ class simulator:
         if mode == self.Mode.mixed and test_run[self.BRANCH]+' '+test_run[self.PLATFORM] in runs:
             return runs[test_run[self.BRANCH]+' '+test_run[self.PLATFORM]]
         
-        self.logger.debug('No last_run found for this case. Using simpler.')
-        # We prioritize the most specific last_run we can find, starting by
-        # BRANCH, and then PLATFORM.
-        if (mode == self.Mode.mixed or mode == self.Mode.platform) and\
-                test_run[self.BRANCH] in runs:
-            return runs[test_run[self.BRANCH]]
-        if (mode == self.Mode.mixed or mode == self.Mode.branch) and\
-                test_run[self.PLATFORM] in runs:
-            return runs[test_run[self.PLATFORM]]
-        for elm in runs:
-            if runs[elm][self.RUN_ID] == runs_pq[0][1]:
-                return runs[elm]
         return None
     
     """
@@ -173,7 +171,7 @@ class simulator:
     This function returns a list of failures occurred in test_run
     """
     def get_fails(self,test_run):
-        if int(test_run[self.RUN_ID]) in self.fail_per_testrun:
+        if test_run is not None and int(test_run[self.RUN_ID]) in self.fail_per_testrun:
             return self.fail_per_testrun[int(test_run[self.RUN_ID])]
         return list()
 
@@ -186,40 +184,32 @@ class simulator:
         - test_file_changes NOT COLLECTING YET
     """
     def get_events(self,start_run,end_run,mode,earliest_timestamp):
-        
-        assert int(start_run[self.TIMESTAMP])<int(end_run[self.TIMESTAMP])
-            
-        self.logger.debug('S_RUN: '+start_run[self.RUN_ID]+
-                            ' | E_RUN: '+end_run[self.RUN_ID]+
-                            ' | EARLY_TIME: '+str(earliest_timestamp))
+        assert start_run is None or int(start_run[self.TIMESTAMP])<int(end_run[self.TIMESTAMP])
+
         events = dict()
         events['recent_failures'] = self.get_fails(start_run)
         
         events['file_changes'] = dict()
-        count = 0
-        useless_elements = 0
-        TIMESTAMP = 0
-        FILENAME = 1
-        #BRANCH = 2
-        for ind,f in enumerate(self.file_changes[start_run[self.NEXT_FILE_CHG]:]):
-            count += 1
-            if int(f[TIMESTAMP]) < earliest_timestamp:
-                useless_elements += 1
-            if int(f[TIMESTAMP]) < int(start_run[self.TIMESTAMP]):
-                continue
-            if int(f[TIMESTAMP]) > int(end_run[self.TIMESTAMP]):
-                end_run[self.NEXT_FILE_CHG] = ind + start_run[self.NEXT_FILE_CHG]
-                self.logger.debug('ER: '+str(end_run)+' | FC: '+str(f))
-                break
-#            if (mode == self.Mode.branch or mode == self.Mode.mixed) and\
-#                    end_run[self.BRANCH] != f[BRANCH]:
-#                continue
-            if f[FILENAME] not in events['file_changes']:
-                events['file_changes'][f[FILENAME]] = 0
-            events['file_changes'][f[FILENAME]] += 1
+        if (self.prev_change is not None and 
+                self.prev_change[self.FC_TEST_RUN] != end_run[self.RUN_ID]):
+            return events
             
-        #self.file_changes = self.file_changes[useless_elements:]
-        self.logger.debug('CHCKD: '+str(count)+' | FLS '+str(len(events['recent_failures']))+'\n')
+        if self.prev_change is not None:
+            events['file_changes'][self.prev_change[self.FC_FILENAME]] = 1
+        self.prev_change = None
+            
+        for f in self.file_changes:
+            if int(f[self.FC_TEST_RUN]) < int(end_run[self.RUN_ID]):
+                continue
+            
+            if f[self.FC_TEST_RUN] != end_run[self.RUN_ID]:
+                self.prev_change = f
+                break
+            
+            if f[self.FC_FILENAME] not in events['file_changes']:
+                events['file_changes'][f[self.FC_FILENAME]] = 0
+            events['file_changes'][f[self.FC_FILENAME]] += 1
+            
         return events
         
     """
@@ -252,7 +242,8 @@ class simulator:
             # test run, and the new one
             if 'file_events' not in self.test_info[failed_test]:
                 self.test_info[failed_test]['file_events'] = dict()
-            multiplier = len(events['file_changes'])
+            #multiplier = len(events['file_changes'])
+            multiplier = 1
             for edit in events['file_changes']:
                 if edit not in self.test_info[failed_test]['file_events']:
                     self.test_info[failed_test]['file_events'][edit] = 0
@@ -449,12 +440,13 @@ class simulator:
         self.running_set = running_set
         test_hist = rh.open_test_history()
         count = 0
+        skips = 0
         missed_failures = 0 # These are failures that would have been caught if the test had run
         caught_failures = 0 # These are failures that are caught - because the test ran
         training = True # This parameter is turned to false after the training round
         runs = dict() # We keep a dictionary of the last runs
         runs_pq = list()
-        pos_dist = numpy.zeros(dtype=int,shape=1000) # Distribution of positions of tests
+        pos_dist = numpy.zeros(dtype=int,shape=1200) # Distribution of positions of tests
         
         self.logger.info('Simulating. RS: '+str(running_set)+' Mode: '+mode)
             
@@ -465,6 +457,10 @@ class simulator:
         the last
         """
         for tr_index,test_run in enumerate(test_hist):
+            skips += 1
+            if skips <= self.starter_run:
+                continue
+            
             fails = list()
             if count == self.learning_set:
                 # First self.learning_set iterations are the learning set. 
@@ -482,13 +478,15 @@ class simulator:
                 # previous information, and thus can't do any predictions
                 # we set this run as the latest one, and will use its information
                 self.update_last_run(runs,test_run,runs_pq)
-                continue
+                #continue
             #TODO change this to prqueue of test_runs
             events = self.get_events(last_run,test_run,mode,runs_pq[0][0])
             fails = self.get_fails(test_run)
             num_fails = len(fails)
 
             fails = self.catch_failures(training,events,fails,pos_dist)
+            if last_run is None:
+                last_run = 'NONE'
             self.logger.info('RUN #'+test_run[self.RUN_ID]+' | FLS: '+
                 str(len(fails)) +' | EDFS: '+str(len(events['file_changes']))+
                 ' | PRV: #'+last_run[self.RUN_ID]+' | BR: '+test_run[self.BRANCH]+
@@ -526,11 +524,12 @@ class simulator:
                          determine if a file should be run or not.
     """
     def __init__(self,max_limit=5000,learning_set = 2000, do_logging = True,
-                 omniscient = False, randomize_tail = False):
+                 omniscient = False, randomize_tail = False, beginning = 0):
         self.max_limit = max_limit
         self.learning_set = learning_set
         self.omniscient = omniscient 
         self.randomize = randomize_tail
+        self.starter_run = beginning
         
         #TODO the custom logging functions are not properly set yet
         logging.addLevelName(self.WA_DEBUG,'WA_DEBUG')
@@ -538,7 +537,7 @@ class simulator:
         logging.addLevelName(self.DEEP_DEBUG,'DEEP_DEBUG')
         
         logger = logging.getLogger('simulation')
-        logger.setLevel(logging.DEBUG)
+        logger.setLevel(logging.INFO)
         self.logger = logger
         sim_id = random.randrange(1000)
         random.seed(1)

@@ -168,7 +168,7 @@ def open_test_history(file_name='csv/test_fail_history_inv.csv'):
     tr_list = list()
     f = open(file_name,'r')
     tr_reader = csv.reader(f)
-    NEXT_FILE_CHG = 2
+    NEXT_FILE_CHG = 3
     for elm in tr_reader:
         elm[NEXT_FILE_CHG] = 0
         tr_list.append(elm)
@@ -180,23 +180,11 @@ FUNCTION:load_file_changes
 This function loads all the information of files that have been changed since 
 the beginning of time - into memory. Careful.
 """
-def load_file_changes(file_name='csv/files_changed.csv'):
-    branches = dict()
-    brf = open('csv/fail_branches.csv','r')
-    for br in brf:
-        branches[br.strip()] = 1
-    brf.close()
-    
-    f_changes = list()
+def load_file_changes(file_name='csv/direct_file_changes.csv'):
     f = open(file_name,'r')
     rdr = csv.reader(f)
-    
-    BRANCH = 2 # Element of ROW that is the BRANCH where the change was added
-    for row in rdr:
-        if row[BRANCH] not in branches:
-            continue
-        f_changes.append(row)
-    return f_changes
+
+    return rdr
 
 
 """

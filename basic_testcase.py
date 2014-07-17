@@ -11,10 +11,11 @@ import simulator as s
 # it will not run, and if it was going to fail, the failure is ignored.
 results = list()
 
-sim = s.simulator(max_limit=5000,learning_set=3000,randomize_tail=True)
+sim = s.simulator(max_limit=100000,learning_set=95000,beginning=0)
 sim.prepare_simulation()
-res = sim.run_simulation(600)
+res = sim.run_simulation(700)
 del sim
+
 """
 
 import numpy as np
