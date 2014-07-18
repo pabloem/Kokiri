@@ -21,6 +21,7 @@ import logging
 import re
 import csv
 import ipdb
+import os
 
 def get_test_history(tr_filename,branch_list):
     logger = logging.getLogger('extract')
@@ -297,3 +298,21 @@ def get_test_file_change_history(test_info,file_name='csv/changes_in_testfiles.c
 
         row[FILENAME] = test_name
         test_info[test_name]['editions'][row[BRANCH]].append(row)
+        
+"""
+Function: load_input_test_lists
+This function loads the list of test files
+"""
+def load_input_test_lists(test_file_dir):
+    exp = re.compile('([^_]*)_([0-9]*)-(log-test.*)')
+    files = dict()
+    for line in os.listdir(test_file_dir):
+        mch = exp.match(line)
+        if not mch:
+            continue
+        label = mch.group(1)+' '+mch.group(2)
+        if label not in files:
+            files[label] = list()
+        files[label].append(line)
+    
+    return files

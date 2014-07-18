@@ -11,7 +11,8 @@ import simulator as s
 # it will not run, and if it was going to fail, the failure is ignored.
 results = list()
 
-sim = s.simulator(max_limit=100000,learning_set=95000,beginning=0)
+sim = s.simulator(max_limit=5000,learning_set=3000,beginning=10000, use_input_list = True,
+                  test_file_dir = '/home/pablo/codes/files_test_runs/')
 sim.prepare_simulation()
 res = sim.run_simulation(700)
 del sim

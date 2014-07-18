@@ -9,7 +9,7 @@ Created on Tue May 20 18:42:05 2014
 """============================================================="""
 import logging # Debug logging framework
 import numpy
-#import math
+import re
 import name_extractor as ne
 import read_history as rh
 import heapq
@@ -38,6 +38,9 @@ class simulator:
     running_set = None
     randomize = False
     starter_run = 0
+    test_file_dir = None
+    input_test_lists = None
+    use_input_list = None
     
     """============================================================="""
     """==============DEBUG LEVELS AND EXPLANATION==================="""
@@ -126,6 +129,7 @@ class simulator:
         """
         Now we get the history of test_file editions
         """
+        self.input_test_lists = rh.load_input_test_lists(self.test_file_dir)
 #        if self.test_edit_factor:
 #            rh.get_test_file_change_history(test_info=self.test_info)
     
@@ -332,7 +336,7 @@ class simulator:
     building the priority queue to determine which tests will run.
     If we are in training mode, this step is skipped
     """
-    def catch_failures(self,training,events,fails,pos_dist):
+    def catch_failures(self,training,events,fails,pos_dist,input_test_list):
         if training:
             return fails
             
@@ -341,6 +345,9 @@ class simulator:
         zero_list = list()
         zeroes = 0
         for test_name in self.test_info:
+            if test_name not in input_test_list:
+                self.logger.debug('NOT IN INPUT TEST LIST')
+                continue
             relv = self.calculate_relevancy(test_name,events)
             if relv != 0.0:
                 heapq.heappush(pr_q,(relv,test_name))
@@ -420,7 +427,46 @@ class simulator:
         res.missed_failures = missed_failures
         res.mode = mode
         return res
+
+    """
+    Function parse_out_tests
+    This function is in charge of opening the file name that comes, and parsing
+    out all the tests that should be considered as part of the input list.
+    """
+    def parse_out_tests(self,file_name):
+        tests = dict()
+        f = open(self.test_file_dir+file_name)
+        exp = re.compile('([^, ]*) ([^ ]*) *\[ ([a-z]*) \]')
+        for line in f:
+            mch = exp.match(line)
+            if not mch:
+                continue
+            test_name = mch.group(1)
+            test_variant = mch.group(2)
+            result = mch.group(3)
+            if result == 'skipped':
+                continue
+            tests[test_name] = 0
+        return tests
+        
+    """
+    Function: get_input_test_list
+    This function gets the list that was input to MTR on this test run, or 
+    if it's not possible to find, then it defaults to 'all' tests
+    """
+    def get_input_test_list(self,test_run):
+        label = test_run[self.PLATFORM]+' '+test_run[self.BUILD_ID]
+        if label not in self.input_test_lists or self.use_input_list:
+            return self.test_info # SHOULD THIS BE CHANGED TO THE WHOLE LIST OF FILES?
+        
+        if label in self.input_test_lists and len(self.input_test_lists[label]) > 0:
+            file_name = self.input_test_lists[label].pop(0)
+        if len(self.input_test_lists[label]) == 0:
+            self.logger.warning("PROBLEM WITH INPUT TEST LIST")
             
+        return self.parse_out_tests(file_name)
+        
+        
     """
     Function: run_simulation
     This is the main simulator function. This function runs the learning round
@@ -436,7 +482,7 @@ class simulator:
                         will depend on whether the test was inside the running set
                         or not. [True, False]
     """
-    def run_simulation(self, running_set, mode=Mode.mixed):
+    def run_simulation(self, running_set, mode=Mode.branch):
         self.running_set = running_set
         test_hist = rh.open_test_history()
         count = 0
@@ -460,7 +506,6 @@ class simulator:
             skips += 1
             if skips <= self.starter_run:
                 continue
-            
             fails = list()
             if count == self.learning_set:
                 # First self.learning_set iterations are the learning set. 
@@ -468,6 +513,8 @@ class simulator:
                 training = False
                 self.logger.debug("==============SIMULATION HAS BEGUN================")
             count=count+1
+            
+            input_test_list = self.get_input_test_list(test_run)
             
             if count > self.max_limit:
                 break # If we have iterated the max_limit of test_runs, we break out
@@ -484,7 +531,8 @@ class simulator:
             fails = self.get_fails(test_run)
             num_fails = len(fails)
 
-            fails = self.catch_failures(training,events,fails,pos_dist)
+            fails = self.catch_failures(training,events,fails,pos_dist,
+                                        input_test_list)
             if last_run is None:
                 last_run = 'NONE'
             self.logger.info('RUN #'+test_run[self.RUN_ID]+' | FLS: '+
@@ -524,12 +572,15 @@ class simulator:
                          determine if a file should be run or not.
     """
     def __init__(self,max_limit=5000,learning_set = 2000, do_logging = True,
-                 omniscient = False, randomize_tail = False, beginning = 0):
+                 omniscient = False, randomize_tail = False, beginning = 0,
+                 use_input_list = True, test_file_dir = 'tests_lists/'):
         self.max_limit = max_limit
         self.learning_set = learning_set
         self.omniscient = omniscient 
         self.randomize = randomize_tail
         self.starter_run = beginning
+        self.test_file_dir = test_file_dir
+        self.use_input_list = use_input_list
         
         #TODO the custom logging functions are not properly set yet
         logging.addLevelName(self.WA_DEBUG,'WA_DEBUG')
