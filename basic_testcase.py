@@ -5,16 +5,16 @@ Created on Fri Jun 13 16:13:58 2014
 @author: pablo
 """
 
-import simulator as s
+import wrapper as s
 
 # Here we are running a full simulation. If a test is not in the running set,
 # it will not run, and if it was going to fail, the failure is ignored.
 results = list()
 
-sim = s.simulator(max_limit=5000,learning_set=3000,beginning=10000, use_input_list = True,
-                  test_file_dir = '/home/pablo/codes/files_test_runs/')
-sim.prepare_simulation()
-res = sim.run_simulation(700)
+sim = s.wrapper(file_dir = '/home/pablo/codes/files_test_runs/')
+#max_limit=5000,learning_set=3000,beginning=10000,
+#sim.prepare_simulation()
+res = sim.run_simulation(max_limit=5000,learning_set=3000,running_set = 300)
 del sim
 
 """
