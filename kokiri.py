@@ -209,7 +209,7 @@ class kokiri:
         random.shuffle(zero_list)
         
         return pr_q+zero_list
-    
+
     """
     Function: update_results
     This function is in charge of absorbing the training information, to be used
@@ -223,6 +223,10 @@ class kokiri:
         else:
             last_run = self._get_last_run(self.mode,test_run)
             events = self._get_events(last_run,test_run,self.mode)
+            
+        # We must update the fail_per_testrun list to remember only the fails
+        # that we have seen for sure
+        self.fail_per_testrun[int(test_run[self.RUN_ID])] = fails    
         
         count = int(test_run[self.RUN_ID])
         for test_name in self.test_info:
@@ -265,10 +269,8 @@ class kokiri:
             if filename not in self.file_info:
                 self.file_info[filename] = 0
             self.file_info[filename] += 1
-        
-        # We must update the fail_per_testrun list to remember only the fails
-        # that we have seen for sure
-        self.fail_per_testrun[int(test_run[self.RUN_ID])] = fails    
+            
+        self._update_last_run(test_run)
     
     """
     Function: update_test_list
@@ -303,26 +305,13 @@ class kokiri:
         if self.file_changes is None:
             self.file_changes = rh.load_file_changes()
             
-    def choose_running_set(self,test_list,running_set,test_run,
-                           training=False):
-        self.logger.info('TR: '+test_run[self.RUN_ID]+
-                        ' Lst: '+str(len(test_list))+
-                        ' RS: '+str(running_set))
-                        
+    def choose_running_set(self,test_list,running_set,test_run):                        
         self._update_test_list(test_list)
 
         last_run = self._get_last_run(self.mode,test_run)
-        if last_run is None:
-            # If we couldn't decide on a last_run, then we don't know any
-            # previous information, and thus can't do any predictions
-            # we set this run as the latest one, and will use its information
-            self._update_last_run(test_run)
-        
+
         events = self._get_events(last_run,test_run,self.mode)
         self.events_dict[test_run[self.RUN_ID]] = events
-        
-        if training:
-            return test_list
         
         pr_queue = self._configure_priority_queue(events,test_list)
         

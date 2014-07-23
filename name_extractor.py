@@ -46,7 +46,7 @@ def extract_names_from_failures(input_dict):
     for row in reader:
         logger.debug("row: "+str(row))
         input_dict[row[0]] = dict()
-        #(input_dict[row[0]])['time'] = 1
+        (input_dict[row[0]])['time'] = 1
         #tests[row[0]+' '+row[1]] = dict()
         #(tests[row[0]+' '+row[1]])['time'] = 1
         count=count+1

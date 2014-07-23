@@ -9,13 +9,15 @@ import name_extractor as ne
 import read_history as rh
 import kokiri
 import numpy
-import ipdb
+import re
 
 class wrapper:
     fail_per_testrun = dict()
     test_info = dict()
     input_test_lists = None
     test_file_dir = None
+    
+    diagnostics = dict()
     
     
     TIMESTAMP = 0
@@ -73,12 +75,16 @@ class wrapper:
     def get_input_test_list(self,test_run):
         label = test_run[self.PLATFORM]+' '+test_run[self.BUILD_ID]
         if label not in self.input_test_lists:
+            self.diagnostics['no_input_list'] += 1
             return self.test_info # SHOULD THIS BE CHANGED TO THE WHOLE LIST OF FILES?
 
         if label in self.input_test_lists and len(self.input_test_lists[label]) == 0:
-            self.logger.warning("PROBLEM WITH INPUT TEST LIST")
+            print("PROBLEM WITH INPUT TEST LIST")
+            self.diagnostics['no_input_list'] += 1
+            return self.test_info 
             
         if label in self.input_test_lists and len(self.input_test_lists[label]) > 0:
+            self.diagnostics['with_input_list'] += 1
             file_name = self.input_test_lists[label].pop(0)
             
         return self.parse_out_tests(file_name)
@@ -117,28 +123,36 @@ class wrapper:
             
             if not training:
                 input_test_list = self.get_input_test_list(test_run)
+#                if input_test_list == self.test_info:
+#                    continue
                 
                 rset = core.choose_running_set(input_test_list, running_set, 
-                                                   test_run,training)
+                                                   test_run)
                 
                 missed_fails = list()
                 if count >= learning_set:
                     caught_fails = list()
                     for elm in fails:
                         if elm not in rset:
-                            caught_fails.append(elm)
-                        else:
                             missed_fails.append(elm)
+                        else:
+                            caught_fails.append(elm)
                     fails = caught_fails
                     missed_cnt += len(missed_fails)
                     caught_cnt += len(fails)
             
             core.update_results(fails,test_run)
-            
+        
         print('MF: '+str(missed_cnt)+' | CF: '+str(caught_cnt)+
                     ' | TF: '+str(missed_cnt+caught_cnt) +
-                    ' | RECALL: '+str(caught_cnt/(missed_cnt+caught_cnt+0.0)))
+                    ' | RECALL: '+str(caught_cnt/(missed_cnt+caught_cnt+0.0))+
+                    ' | NO_IN_LST: '+str(self.diagnostics['no_input_list'])+
+                    ' | WTH_IN_LST: '+str(self.diagnostics['with_input_list'])
+                    )
+        return core
                     
     def __init__(self,file_dir='tests_lists/'):
         self.test_file_dir = file_dir
         self.load_startup()
+        self.diagnostics['no_input_list'] = 0
+        self.diagnostics['with_input_list'] = 0
