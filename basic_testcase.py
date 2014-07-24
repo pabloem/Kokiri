@@ -14,9 +14,9 @@ results = list()
 sim = s.wrapper(file_dir = '/home/pablo/codes/files_test_runs/')
 #max_limit=5000,learning_set=3000,beginning=10000,
 #sim.prepare_simulation()
-res = sim.run_simulation(max_limit=5000,learning_set=3000,beginning=0,running_set = 300)
-#res = sim.run_simulation(max_limit=5000,learning_set=3000,beginning=141000,running_set = 0.30)
-#del sim
+#res = sim.run_simulation(max_limit=20000,learning_set=3000,beginning=0,running_set = 0.50)
+res = sim.run_simulation(max_limit=8000,learning_set=3000,beginning=142000,running_set = 0.3)
+del sim
 
 """
 

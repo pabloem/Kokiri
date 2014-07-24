@@ -196,7 +196,7 @@ class kokiri:
         zeroes = 0
         for test_name in self.test_info:
             if test_name not in input_test_list:
-                self.logger.debug('NOT IN INPUT TEST LIST')
+                #self.logger.debug('NOT IN INPUT TEST LIST')
                 continue
             relv = self._calculate_relevance(test_name,events)
             if relv != 0.0:
@@ -284,10 +284,13 @@ class kokiri:
                 # SHOULD WE RISE THE RELEVANCE OF THIS TEST?
                 
     def _make_running_set(self,running_set,pr_queue):
-        if running_set < 1.0: # If running set is < 1, then it's a percentage; else it's an exact number
+        # If running set is < 1, then it's a percentage; else it's an exact number
+        if running_set < 1.0:
             running_set = math.ceil(len(pr_queue)*running_set)
-        
-        running_set = int(running_set)
+        if running_set < 50:
+            running_set = 50
+            
+        running_set = int(running_set) if running_set < len(pr_queue) else len(pr_queue)
         
         rset = list()
         for i in range(running_set):

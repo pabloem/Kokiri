@@ -4,7 +4,7 @@ Created on Sat Jul 19 11:33:37 2014
 
 @author: pablo
 """
-
+import ipdb
 import name_extractor as ne
 import read_history as rh
 import kokiri
@@ -45,7 +45,8 @@ class wrapper:
     def parse_out_tests(self,file_name):
         tests = dict()
         f = open(self.test_file_dir+file_name)
-        exp = re.compile('([^, ]*) ([^ ]*) *\[ ([a-z]*) \]')
+        #exp = re.compile('([^, ]*)( [^ ]*)? *(w[1-4])? \[ ([a-z]*) \]')
+        exp = re.compile('([^, ]+) ?([^ ]*)? *.*\[ (fail|disabled|pass|skipped) \]')
         for line in f:
             mch = exp.match(line)
             if not mch:
@@ -88,7 +89,16 @@ class wrapper:
             file_name = self.input_test_lists[label].pop(0)
             
         return self.parse_out_tests(file_name)
-            
+        
+    """
+    Function: verify_input_and_fails
+    This function just makes sure that all failures can be caught
+    """
+    def verify_input_and_fails(self,input_test_list,fails):
+        for elm in fails:
+            if elm not in input_test_list:
+                print "FAILURE NOT IN INPUT TEST LIST"
+            #assert elm in input_test_list
             
     def run_simulation(self,max_limit,learning_set,running_set,beginning=0):
         core = kokiri.kokiri()
@@ -111,6 +121,7 @@ class wrapper:
             if skips <= beginning:
                 continue
             if count == learning_set:
+                
                 # First self.learning_set iterations are the learning set. 
                 # After that, the simulation starts.
                 training = False
@@ -123,9 +134,10 @@ class wrapper:
             
             if not training:
                 input_test_list = self.get_input_test_list(test_run)
-#                if input_test_list == self.test_info:
-#                    continue
-                
+                if input_test_list == self.test_info:
+##                    count -= 1
+                    continue
+                self.verify_input_and_fails(input_test_list,fails)
                 rset = core.choose_running_set(input_test_list, running_set, 
                                                    test_run)
                 
