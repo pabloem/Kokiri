@@ -5,22 +5,26 @@ Created on Fri Jun 13 16:13:58 2014
 @author: pablo
 """
 
-import simulator as s
-import numpy as np
+import wrapper as s
 
 # Here we are running a full simulation. If a test is not in the running set,
 # it will not run, and if it was going to fail, the failure is ignored.
-sim = s.simulator(time_factor=True,randomize_tail=True,full_simulation=True,\
-            do_logging=True,test_edit_factor=True,learning_set=47000,max_limit=50000)
+results = list()
+rsets = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8]
+recalls = list()
+sim = s.wrapper(file_dir = '/home/pablo/codes/files_test_runs/')
+#for rset in rsets:
+#sim = s.wrapper(file_dir = '/home/pablo/codes/files_test_runs/')
+#max_limit=5000,learning_set=3000,beginning=10000,
+#sim.prepare_simulation()
+#res = sim.run_simulation(max_limit=20000,learning_set=3000,beginning=0,running_set = 0.50)
+rec = sim.run_simulation(max_limit=300000,learning_set=3000,beginning=127000,running_set = 0.7)
+sim.load_startup()
+recalls.append(rec)
+    #del sim
 
-sim.prepare_simulation()
 
-
-standard_results = list()
-platform_results = list()
-branch_results = list()
-mixed_results = list()
-
+"""
 
 #basic_run_sets = (20,50,100,150,200,250,350,400,500)
 basic_run_sets = (100,250,500)
@@ -118,3 +122,4 @@ plt.ylabel('Recall')
 plt.legend(loc='lower right')
 plt.title('Recall by running set size')
 plt.grid()
+"""

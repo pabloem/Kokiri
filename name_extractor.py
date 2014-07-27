@@ -35,10 +35,9 @@ def extract_names_from_testrun():
         logger.info("====="+str(len(tests))+" test names/variations inserted")
     return tests
 
-def extract_names_from_failures():
+def extract_names_from_failures(input_dict):
     logger = logging.getLogger('extract')
     import csv
-    tests = dict()
     filename = "csv/test_namevar.csv"
     f = open(filename,'r')
     reader = csv.reader(f)
@@ -46,13 +45,12 @@ def extract_names_from_failures():
     count = 0
     for row in reader:
         logger.debug("row: "+str(row))
-        tests[row[0]] = dict()
-        (tests[row[0]])['time'] = 1
+        input_dict[row[0]] = dict()
+        (input_dict[row[0]])['time'] = 1
         #tests[row[0]+' '+row[1]] = dict()
         #(tests[row[0]+' '+row[1]])['time'] = 1
         count=count+1
     logger.info("Read "+str(count)+" test names from "+filename)
-    return tests
 
 """
 FUNCTION: get_all_test_names
@@ -61,12 +59,12 @@ This function returns all the test names+variations available in the
 test_namevar.csvand the typescript log files. This yields a large number 
 of test/variation keys
 """
-def get_all_test_names():
-    test2 = extract_names_from_failures()
+def get_all_test_names(input_dict):
+    extract_names_from_failures(input_dict)
     """
     test1 = extract_names_from_testrun()
     for key in test2.keys():
         if key not in test1:
             test1[key] = 1
     """
-    return test2
+    return input_dict
