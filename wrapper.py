@@ -50,7 +50,7 @@ class wrapper:
         tests = dict()
         f = open(self.test_file_dir+file_name)
         #exp = re.compile('([^, ]*)( [^ ]*)? *(w[1-4])? \[ ([a-z]*) \]')
-        exp = re.compile('([^, ]+) ?([^ ]*)? *.*\[ (fail|disabled|pass|skipped) \]')
+        exp = re.compile('([^, ]+) ?([^ ]*) *.*\[ (fail|disabled|pass|skipped) \]')
         for line in f:
             mch = exp.match(line)
             if not mch:
