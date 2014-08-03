@@ -105,8 +105,8 @@ class wrapper:
                 input_test_list[elm] = 0
             #assert elm in input_test_list
             
-    def run_simulation(self,max_limit,learning_set,running_set,beginning=0):
-        core = kokiri.kokiri()
+    def run_simulation(self,max_limit,learning_set,running_set,beginning=0,mode = 'standard'):
+        core = kokiri.kokiri(mode=mode)
         test_hist = rh.open_test_history()
         count = 0
         skips = 0

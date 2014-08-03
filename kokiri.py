@@ -126,9 +126,15 @@ class kokiri:
     when implementing predictions. It must be called after each test_run.
     """
     def update_results(self,fails,test_run,input_list):
+        self.logger.info('UDResults - TR'+str(test_run[self.RUN_ID])+
+                         ' Fls ' + str(len(fails))+
+                         ' | ITLlen '+str(len(input_list)))
         self._update_test_list(input_list)
+        fs = dict()
+        for elm in fails:
+            fs[elm] = 0
         for elm in input_list:
-            fail = int(elm in fails) #TODO this is O(n*m), can do O(n+m)
+            fail = int(elm in fs) #Changed search to O(1) per lookup from O(n)
             self._calculate_metric[self.metric](self,elm,fail,test_run)
     
     """
@@ -168,7 +174,9 @@ class kokiri:
             self.file_changes = rh.load_file_changes()
             
     def choose_running_set(self,test_list,running_set,test_run):
-        self.logger.info('TR: '+test_run[self.RUN_ID]+' | TLsz: '+str(len(test_list)))
+        self.logger.info('ChooseRSet - TR: '+test_run[self.RUN_ID]+
+                        ' | TLlen: '+str(len(test_list))+
+                        ' | RSet: '+str(running_set))
         self._update_test_list(test_list)
 
         pr_queue = self._configure_priority_queue(test_run,test_list)
@@ -181,13 +189,13 @@ class kokiri:
         self.logger = logger
         sim_id = random.randrange(1000)
         if logger.handlers == []:
-#            a = 1
-#            fh = logging.FileHandler('logs/simulation_20140507.txt')
-#            fh.setLevel(logging.DEBUG)
-#            ff = logging.Formatter('%(asctime)s - %(funcName)s - ID'+str(sim_id)+' - %(message)s')
-#            fh.setFormatter(ff)
-#            
-#            logger.addHandler(fh)
+            a = 1
+            fh = logging.FileHandler('logs/simulation_20140507.txt')
+            fh.setLevel(logging.DEBUG)
+            ff = logging.Formatter('%(asctime)s - %(funcName)s - ID'+str(sim_id)+' - %(message)s')
+            fh.setFormatter(ff)
+            
+            logger.addHandler(fh)
             
             ch = logging.StreamHandler()
             ch.setLevel(logging.INFO)
@@ -200,7 +208,7 @@ class kokiri:
             for hdlr in logger.handlers:
                 logger.removeHandler(hdlr)
         
-    def __init__(self,log_events=True,mode=Mode.standard):
+    def __init__(self,log_events=True,mode=Mode.platform):
         self._configure_logging(log_events)
         self._load_status()
         self.mode = mode
