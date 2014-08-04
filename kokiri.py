@@ -168,10 +168,9 @@ class kokiri:
     In a REAL SETTING, this function must read up to the previous test run.
     """
     def _load_status(self):
+        self.logger.debug('Loading status')
 #        if len(self.test_info) == 0:
 #            ne.get_all_test_names(self.test_info)
-        if self.file_changes is None:
-            self.file_changes = rh.load_file_changes()
             
     def choose_running_set(self,test_list,running_set,test_run):
         self.logger.info('ChooseRSet - TR: '+test_run[self.RUN_ID]+

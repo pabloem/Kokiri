@@ -17,7 +17,8 @@ and test history of MariaDB. In this repository, the most important csv files
 are the following:
 
 * test_fail_history_inv.csv
-* fails_p_test_run.csv
+* test_fail_history.csv
+* test_namevar.csv
 
 ### Creating test_fail_history_inv.csv
 Log in to the MariaDB development database and run the following query:
@@ -46,7 +47,7 @@ select
         lines terminated by '\n';
 ```
 
-### Creating fails_p_test_run.csv
+### Creating test_fail_history.csv
 Log in to the MariaDB development database and run the following query:
 ```
 select
@@ -58,9 +59,21 @@ select
         tr.id = tf.test_run_id
     order by 1 desc 
         into outfile 
-        '/tmp/fails_p_test_run.csv'
+        '/tmp/test_fail_history.csv'
         fields terminated by ',' 
         enclosed by '"' 
         lines terminated by '\n';
 ```
 
+### Creating test_namevar.csv
+Log in to the MariaDB development database and run the following query:
+```
+select 
+    test_name, test_variant 
+    from test_failure 
+    group by 1, 2 
+    into outfile '/tmp/test_namevar.csv' 
+    fields enclosed by '"' 
+    terminated by ',' 
+    lines terminated by '\n';
+```
