@@ -30,8 +30,12 @@ class wrapper:
     FAILS = 11
     
     def load_startup(self):
+        self.diagnostics['no_input_list'] = 0
+        self.diagnostics['with_input_list'] = 0
+        test_info = dict()
         if len(self.test_info) == 0:
             ne.get_all_test_names(self.test_info)
+        fail_per_testrun = dict()    
         if len(self.fail_per_testrun) == 0:
             rh.load_failures(self.test_info, self.fail_per_testrun)
             
@@ -98,6 +102,7 @@ class wrapper:
         for elm in fails:
             if elm not in input_test_list:
                 print "FAILURE NOT IN INPUT TEST LIST"
+                input_test_list[elm] = 0
             #assert elm in input_test_list
             
     def run_simulation(self,max_limit,learning_set,running_set,beginning=0):
@@ -161,10 +166,9 @@ class wrapper:
                     ' | NO_IN_LST: '+str(self.diagnostics['no_input_list'])+
                     ' | WTH_IN_LST: '+str(self.diagnostics['with_input_list'])
                     )
-        return core
+        del core
+        return caught_cnt/(missed_cnt+caught_cnt+0.0)
                     
     def __init__(self,file_dir='tests_lists/'):
         self.test_file_dir = file_dir
         self.load_startup()
-        self.diagnostics['no_input_list'] = 0
-        self.diagnostics['with_input_list'] = 0
