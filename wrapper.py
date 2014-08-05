@@ -11,7 +11,7 @@ import kokiri
 import numpy
 import re
 
-class wrapper:
+class wrapper(object):
     fail_per_testrun = dict()
     test_info = dict()
     input_test_lists = None

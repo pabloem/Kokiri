@@ -12,7 +12,7 @@ import logging
 import math
 import heapq
 
-class kokiri:
+class kokiri(object):
     test_info = dict()
     runs = dict()
     events_dict = dict()
@@ -23,7 +23,7 @@ class kokiri:
     file_info = dict()
     
     
-    class Mode():
+    class Mode(object):
         standard = 'standard'
         platform = 'platform'
         branch = 'branch'
