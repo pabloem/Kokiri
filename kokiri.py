@@ -5,8 +5,8 @@ Created on Sat Jul 19 11:32:19 2014
 @author: pablo
 """
 
-import name_extractor as ne
-import read_history as rh
+#import name_extractor as ne
+#import read_history as rh
 import random
 import logging
 import math
@@ -14,13 +14,10 @@ import heapq
 
 class kokiri(object):
     test_info = dict()
-    runs = dict()
-    events_dict = dict()
-    file_changes = None
-    prev_change = None
     logger = None
-    fail_per_testrun = dict()
-    file_info = dict()
+
+    upd_count = dict()
+    pred_count = dict()
     
     
     class Mode(object):
@@ -69,15 +66,6 @@ class kokiri(object):
         
     _calculate_metric = {'exp_decay':_calculate_exp_decay}
     metric = 'exp_decay' #TODO may need other metrics?
-
-    """
-    Function: get_fails
-    This function returns a list of failures occurred in test_run
-    """
-    def _get_fails(self,test_run):
-        if test_run is not None and int(test_run[self.RUN_ID]) in self.fail_per_testrun:
-            return self.fail_per_testrun[int(test_run[self.RUN_ID])]
-        return list()    
     
     """
     Function: calculate_relevance
@@ -100,7 +88,7 @@ class kokiri(object):
     building the priority queue to determine which tests will run.
     """
     def _configure_priority_queue(self,test_run,input_test_list):
-        TST_NAME = 1 # This is the index of TST NAME in the priority queues
+        # TST_NAME = 1 # This is the index of TST NAME in the priority queues
         pr_q = list() # Here is the priority queue
         zero_list = list()
         zeroes = 0
@@ -129,6 +117,7 @@ class kokiri(object):
         self.logger.info('UDResults - TR'+str(test_run[self.RUN_ID])+
                          ' Fls ' + str(len(fails))+
                          ' | ITLlen '+str(len(input_list)))
+        self._update_count(test_run,self.upd_count)
         self._update_test_list(input_list)
         fs = dict()
         for elm in fails:
@@ -161,13 +150,29 @@ class kokiri(object):
         for i in range(running_set):
             rset.append(pr_queue[i][1])
         return rset
+
+    """
+    Function: _update_count
+    This function updates the count of result updates or prediction rounds
+    that we have ran
+    """
+    def _update_count(self,test_run,count):
+        label = self._get_label(test_run)
+        if label not in count:
+            count[label] = 0
+        count[label] += 1
+        
+        if 'standard' not in count:
+            count['standard'] = 0
+        if label is not 'standard':
+            count['standard'] += 1
     
     """
     Function: load_status
     This function loads the initial state
     In a REAL SETTING, this function must read up to the previous test run.
     """
-    def _load_status(self):
+    def _load_initial_status(self):
         self.logger.debug('Loading status')
 #        if len(self.test_info) == 0:
 #            ne.get_all_test_names(self.test_info)
@@ -176,19 +181,74 @@ class kokiri(object):
         self.logger.info('ChooseRSet - TR: '+test_run[self.RUN_ID]+
                         ' | TLlen: '+str(len(test_list))+
                         ' | RSet: '+str(running_set))
+        self._update_count(test_run,self.pred_count)
+        
         self._update_test_list(test_list)
 
         pr_queue = self._configure_priority_queue(test_run,test_list)
         
         return self._make_running_set(running_set,pr_queue)
+
+    """
+    Function: save_state
+    This function stores the state of the simulator, to be able to conserve and
+    reload later on (if simulation won't be done completely in memory)
+    """
+    def save_state(self,filename):
+        elems = list()
+        elems.append(self.upd_count)
+        elems.append(self.pred_count)
+        elems.append(self.test_info)
+        import json
+        with open(filename, 'w') as f:
+            json.dump(elems, f)
+    
+    """
+    Function: load_state
+    This function loads in the state of a previous simulation. It is the
+    inverse function of save_state. They can be adapted to different permanent
+    storage methods
+    """
+    def load_state(self,filename):
+        import json
+        with open(filename) as f:
+            elems = json.load(f)
+        self.test_info = elems.pop()
+        self.pred_count = elems.pop()
+        self.upd_count = elems.pop()
         
+    """
+    Function: get_count
+    This function returns the count of update/prediction rounds
+    for the given test_run. It takes as arguments:
+    - test_run - In case we need a certain platform/branch,etc
+    - what_count - To define if we want the count of prediction rounds or
+                    the count of result updates
+    - total - To define if we want the total count, or if we want only
+            the count of rounds for a given platform/branch/mix
+    """
+    def get_count(self,test_run,what_count,total=False):
+        assert what_count in ['result_updates','prediction_rounds']
+        
+        label = 'standard'
+        if not total:
+            label = self._get_label(test_run)
+
+        if label not in self.upd_count:
+            self.upd_count[label] = 0
+        if label not in self.pred_count:
+            self.pred_count[label] = 0
+            
+        if what_count == 'result_updates':
+            return self.upd_count[label]
+        return self.pred_count[label]
+    
     def _configure_logging(self,log_events):
         logger = logging.getLogger('simulation')
         logger.setLevel(logging.INFO)
         self.logger = logger
         sim_id = random.randrange(1000)
         if logger.handlers == []:
-            a = 1
             fh = logging.FileHandler('logs/simulation_20140507.txt')
             fh.setLevel(logging.DEBUG)
             ff = logging.Formatter('%(asctime)s - %(funcName)s - ID'+str(sim_id)+' - %(message)s')
@@ -209,6 +269,6 @@ class kokiri(object):
         
     def __init__(self,log_events=True,mode=Mode.platform):
         self._configure_logging(log_events)
-        self._load_status()
+        self._load_initial_status()
         self.mode = mode
         random.seed(1)

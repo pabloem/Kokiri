@@ -105,7 +105,8 @@ class wrapper(object):
                 input_test_list[elm] = 0
             #assert elm in input_test_list
             
-    def run_simulation(self,max_limit,learning_set,running_set,beginning=0,mode = 'standard'):
+    def run_simulation(self,max_limit,learning_set,running_set,beginning=0,
+                       learning_rounds_per_unit= 0,mode = 'standard'):
         core = kokiri.kokiri(mode=mode)
         test_hist = rh.open_test_history()
         count = 0
@@ -125,7 +126,7 @@ class wrapper(object):
             skips += 1
             if skips <= beginning:
                 continue
-            if count == learning_set:
+            if core.get_count(test_run,'result_updates',total=True) == learning_set:
                 
                 # First self.learning_set iterations are the learning set. 
                 # After that, the simulation starts.
@@ -133,11 +134,31 @@ class wrapper(object):
                 #print("==============SIMULATION HAS BEGUN================")
             count=count+1
             
+            if count%1000 == 0:
+                #ipdb.set_trace()
+                tinfo = core.test_info
+                prounds = core.pred_count
+                uprounds = core.upd_count
+                core.save_state('/home/pablo/crazyfile')                
+                del core
+                core = kokiri.kokiri(mode=mode)
+                core.load_state('/home/pablo/crazyfile')
+                assert (tinfo == core.test_info and 
+                        id(tinfo) != id(core.test_info) and
+                        prounds == core.pred_count and
+                        id(prounds) != id(core.pred_count) and
+                        uprounds == core.upd_count and 
+                        id(uprounds) != id(core.upd_count))
+            
             if count > max_limit:
                 break # If we have iterated the max_limit of test_runs, we break out
             fails = self.get_fails(test_run)
-            input_test_list = self.get_input_test_list(test_run)            
-            if not training:
+            input_test_list = self.get_input_test_list(test_run)
+            count_per_unit = core.get_count(test_run,'result_updates')
+            if not training and count_per_unit < learning_rounds_per_unit:
+                print 'GONE BACK TO PREDICTION FOR NEW UNIT'
+            if (not training and 
+                 count_per_unit >= learning_rounds_per_unit):
                 if input_test_list == self.test_info:
 ##                    count -= 1
                     continue
@@ -165,7 +186,7 @@ class wrapper(object):
                     ' | NO_IN_LST: '+str(self.diagnostics['no_input_list'])+
                     ' | WTH_IN_LST: '+str(self.diagnostics['with_input_list'])
                     )
-        del core
+        return core
         return caught_cnt/(missed_cnt+caught_cnt+0.0)
                     
     def __init__(self,file_dir='tests_lists/'):
