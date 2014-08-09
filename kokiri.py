@@ -5,8 +5,7 @@ Created on Sat Jul 19 11:32:19 2014
 @author: pablo
 """
 
-#import name_extractor as ne
-#import read_history as rh
+import ipdb
 import random
 import logging
 import math
@@ -194,14 +193,36 @@ class kokiri(object):
     This function stores the state of the simulator, to be able to conserve and
     reload later on (if simulation won't be done completely in memory)
     """
-    def save_state(self,filename):
-        elems = list()
-        elems.append(self.upd_count)
-        elems.append(self.pred_count)
-        elems.append(self.test_info)
-        import json
-        with open(filename, 'w') as f:
-            json.dump(elems, f)
+    def save_state(self,dbuser,dbpassword,db):
+        tinfo_labels = [('test_info',
+                         test+' '+metric+' '+label,
+                         str(self.test_info[test][metric][label]),
+                         str(self.test_info[test][metric][label]))
+                        for test in self.test_info
+                        for metric in self.test_info[test]
+                        for label in self.test_info[test][metric]]
+        upd_count_labels = [('upd_count',
+                             label,
+                             str(self.upd_count[label]),
+                             str(self.upd_count[label]))
+                             for label in self.upd_count]
+        pred_count_labels = [('pred_count',
+                             label,
+                             str(self.pred_count[label]),
+                             str(self.pred_count[label]))
+                             for label in self.pred_count]
+        import MySQLdb
+        db = MySQLdb.connect(user=dbuser,
+                            passwd=dbpassword,db=db)
+        c = db.cursor()
+        c.executemany(
+        """INSERT INTO kokiri_data (dict, labels, value) VALUES (%s,%s,%s)
+            ON DUPLICATE KEY UPDATE value = %s""",
+            tinfo_labels+upd_count_labels+pred_count_labels
+        )
+        db.commit()
+        c.close()
+        db.close()
     
     """
     Function: load_state
@@ -209,13 +230,35 @@ class kokiri(object):
     inverse function of save_state. They can be adapted to different permanent
     storage methods
     """
-    def load_state(self,filename):
-        import json
-        with open(filename) as f:
-            elems = json.load(f)
-        self.test_info = elems.pop()
-        self.pred_count = elems.pop()
-        self.upd_count = elems.pop()
+    def load_state(self,dbuser,dbpassword,db):
+        self.test_info = dict()
+        self.upd_count = dict()
+        self.pred_count = dict()
+        import MySQLdb
+        db = MySQLdb.connect(user=dbuser,
+                            passwd=dbpassword,db=db)
+        c = db.cursor()
+        c.execute("""SELECT * from kokiri_data""")
+        DICT = 0
+        LABELS = 1
+        VAL = 2
+        for row in c.fetchall():
+            if row[DICT] == 'pred_count':
+                self.pred_count[row[LABELS]] = int(row[VAL])
+            elif row[DICT] == 'upd_count':
+                self.upd_count[row[LABELS]] = int(row[VAL])
+            elif row[DICT] == 'test_info':
+                TEST = 0
+                METRIC = 1
+                LABEL = 2
+                lbls = row[LABELS].split()
+                if lbls[TEST] not in self.test_info:
+                    self.test_info[lbls[TEST]] = dict()
+                if lbls[METRIC] not in self.test_info[lbls[TEST]]:
+                    self.test_info[lbls[TEST]][lbls[METRIC]] = dict()
+                self.test_info[lbls[TEST]][lbls[METRIC]][lbls[LABEL]] = float(row[VAL])
+        c.close()
+        db.close()
         
     """
     Function: get_count

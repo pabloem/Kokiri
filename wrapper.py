@@ -139,16 +139,19 @@ class wrapper(object):
                 tinfo = core.test_info
                 prounds = core.pred_count
                 uprounds = core.upd_count
-                core.save_state('/home/pablo/crazyfile')                
+                core.save_state(dbuser='root',dbpassword='admin',db='kokiri_jul24')
                 del core
-                core = kokiri.kokiri(mode=mode)
-                core.load_state('/home/pablo/crazyfile')
-                assert (tinfo == core.test_info and 
-                        id(tinfo) != id(core.test_info) and
-                        prounds == core.pred_count and
-                        id(prounds) != id(core.pred_count) and
-                        uprounds == core.upd_count and 
-                        id(uprounds) != id(core.upd_count))
+                corez = kokiri.kokiri(mode=mode)
+                corez.load_state(dbuser='root',dbpassword='admin',db='kokiri_jul24')
+                if not (tinfo == corez.test_info and 
+                        id(tinfo) != id(corez.test_info) and
+                        prounds == corez.pred_count and
+                        id(prounds) != id(corez.pred_count) and
+                        uprounds == corez.upd_count and 
+                        id(uprounds) != id(corez.upd_count)):
+                    return [tinfo,corez]
+                    ipdb.set_trace()
+                core = corez
             
             if count > max_limit:
                 break # If we have iterated the max_limit of test_runs, we break out
