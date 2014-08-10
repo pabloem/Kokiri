@@ -3,6 +3,36 @@
 This repository contains the code to analyze and run simulations on the testing
 data from MariaDB development.
 
+## Storing and retrieving from permanent storage
+The kokiri class includes a couple of functions that store and retrieve data
+from a database which information can be provided to them as input. The data is
+stored in a table called 'kokiri_data', which can be created as follows:
+```
+CREATE TABLE kokiri_data
+    (dict VARCHAR(20),
+    labels VARCHAR(200),
+    value VARCHAR(100),
+    PRIMARY_KEY(dict,labels));
+```
+The labels field stores the nested list of labels in python dictionaries. The
+value field stores the numeric value that the element contains, so for the
+following dict:
+```
+my_dict = {'test1':{'exp_decay':{'p1':1 'p2':3}} 'test2':{'exp_decay':{'p5':2}}}
+```
+The table would look as follows:
+```
+=================================================
+|   DICT    |   LABELS              |   VALUE   |
+|-----------|-----------------------|-----------|
+|'my_dict'  |'test1 exp_decay p1'   |1          |
+|'my_dict'  |'test1 exp_decay p2'   |3          |
+|'my_dict'  |'test2 exp_decay p5'   |2          |
+=================================================
+```
+To further customize the data storage section, the kokiri.save_state and
+kokiri.load_state functions may be modified.
+
 ## Adding the test_run input test list directory
 The wrapper module requires the input test list directory when being 
 initialized. It should be passed to the wrapper.wrapper constructor as follows:
