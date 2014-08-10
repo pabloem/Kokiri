@@ -149,8 +149,7 @@ class wrapper(object):
                         id(prounds) != id(corez.pred_count) and
                         uprounds == corez.upd_count and 
                         id(uprounds) != id(corez.upd_count)):
-                    return [tinfo,corez]
-                    ipdb.set_trace()
+                    print 'INFORMATION NOT EXACTLY EQUAL'
                 core = corez
             
             if count > max_limit:
