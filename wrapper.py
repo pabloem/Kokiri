@@ -134,23 +134,23 @@ class wrapper(object):
                 #print("==============SIMULATION HAS BEGUN================")
             count=count+1
             
-            if count%1000 == 0:
-                #ipdb.set_trace()
-                tinfo = core.test_info
-                prounds = core.pred_count
-                uprounds = core.upd_count
-                core.save_state(dbuser='root',dbpassword='admin',db='kokiri_jul24')
-                del core
-                corez = kokiri.kokiri(mode=mode)
-                corez.load_state(dbuser='root',dbpassword='admin',db='kokiri_jul24')
-                if not (tinfo == corez.test_info and 
-                        id(tinfo) != id(corez.test_info) and
-                        prounds == corez.pred_count and
-                        id(prounds) != id(corez.pred_count) and
-                        uprounds == corez.upd_count and 
-                        id(uprounds) != id(corez.upd_count)):
-                    print 'INFORMATION NOT EXACTLY EQUAL'
-                core = corez
+#            if count%1000 == 0:
+#                #ipdb.set_trace()
+#                tinfo = core.test_info
+#                prounds = core.pred_count
+#                uprounds = core.upd_count
+#                core.save_state(dbuser='root',dbpassword='admin',db='kokiri_jul24')
+#                del core
+#                corez = kokiri.kokiri(mode=mode)
+#                corez.load_state(dbuser='root',dbpassword='admin',db='kokiri_jul24')
+#                if not (tinfo == corez.test_info and 
+#                        id(tinfo) != id(corez.test_info) and
+#                        prounds == corez.pred_count and
+#                        id(prounds) != id(corez.pred_count) and
+#                        uprounds == corez.upd_count and 
+#                        id(uprounds) != id(corez.upd_count)):
+#                    print 'INFORMATION NOT EXACTLY EQUAL'
+#                core = corez
             
             if count > max_limit:
                 break # If we have iterated the max_limit of test_runs, we break out
