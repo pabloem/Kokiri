@@ -14,14 +14,16 @@ This algorithm is contained in the ```master``` branch of the git repository.
 To decide which tests are more likely to fail in the next run, it uses a
 time-weighted average of failures. The more recent a failure has been, the
 more significant it will be to make the test be considered significant.
-Since this algorithm had the best results, 
+This algorithm had the best results in tests, and is faster to run.
 
 #### The File-change correlation algorithm
 This algorithm is contained in the ```file_change_correlations``` branch. It
 uses correlation between changes of files and subsequent failed tests to 
 estimate which test is more relevant. The performance of this algorithm is not
 a lot worse than the fail frequency algorithm, but another disadvantage that
-it presents is that it requires a lot of information (
+it presents is that it requires a lot of information (parsing of filenames
+from file changes, as well as keeping the correlations in memory, making it 
+more space-complex).
 
 ### Methods exposed by the ```kokiri``` class
 The algorithms are implemented by the ```kokiri``` class. This class exposes
